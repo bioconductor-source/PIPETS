@@ -24,6 +24,20 @@ knitr::opts_chunk$set(
 
 # Introduction
 
+Bacteria rely on rapid alteration of transcription termination to regulate their
+response to envrionmental perturbations. Premature termination of transcripts as
+well as attenuation of transcript length (ex: only expressing some genes in an 
+operon) are both prevalent signals and studying them has potent implications for
+better understanding how antimicrobials affect bacteria. High throughput 
+sequencing for studying termination signal (known as 3'-seq or term-seq) is 
+currently available and more data sets are being created rapidly. However, 
+unlike other high throughput sequencing methods, there is not standardized, 
+easily accessible, statistically robust analysis tool. Here we present PIPETS 
+(Poisson Identification of PEaks from Term-Seq data) which analyzes 3'-seq data
+using a Poisson Distribution Test to identify termination signal that is 
+statistically higher than the surrounding noise. These termination peaks can be
+used to identify shifts in bacterial response and give a better understanding of
+a very important set of targets for ongoing antimicrobial development.
 
 # Quick Start
 
@@ -66,7 +80,13 @@ knitr::include_graphics("Sample_PIPETS_TotalOutput.png")
 ```
 
 # Installation
+To install PIPETS, use Bioconductor's BiocManager package.
+```{r echo=TRUE, message=FALSE, eval=FALSE}
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
 
+BiocManager::install("PIPETS")
+```
 
 
 # Detailed Walkthrough
