@@ -14,5 +14,6 @@ Suggests:
     rmarkdown,
     testthat (>= 3.0.0)
 VignetteBuilder: knitr
+URL: https://github.com/qfurumo/PIPETS
 biocViews: Sequencing, Transcription, GeneRegulation, PeakDetection, Genetics, Transcriptomics, Coverage
 Config/testthat/edition: 3
