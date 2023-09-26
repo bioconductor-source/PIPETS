@@ -17,7 +17,7 @@ utils::globalVariables(c("coverage", "HighestPeakReadCoverage",
 #' @param adjacentPeakDistance See PIPETS_Run for full explanation
 #' @param peakCondensingDistance See PIPETS_Run for full explanation
 #' @return Returns kicker variable that will stop PIPETS if error is detected
-#' @export
+#' @noRd
 #'
 inputCheck <- function(inputBedFile,readLength,slidingWindowSize,
                        slidingWindowMovementDistance,threshAdjust,
@@ -66,7 +66,7 @@ inputCheck <- function(inputBedFile,readLength,slidingWindowSize,
 #' @param threshAdjust This parameter is used to establish a global cutoff threshold informed by the data. PIPETS sorts the genomic positions of each strand from highest to lowest, and starts with the highest read coverage position and subtracts that value from the total read coverage for that strand. By default, this continues until 75% of the total read coverage has been accounted for. Increasing the percentage (e.x. 0.9) will lower the strictness of the cutoff, thus increasing the total number of significant results.
 #' @param topEndPercentage This parameter is used along with threshAdjust to trim off the influence exerted by high read coverage outliers. By default, it removes the top 0.01 percent of the highest read coverage positions from the calculation of the global threshold (e.x. if there are 200 positions that make up 75% of the total reads, then this parameter will take the top 2 read coverage positions and remove them from the calculation of the global threshold). This parameter can be tuned to account for datasets with outliers that would otherwise severely skew the global threshold.
 #' @return Outputs threshold used for cutoff
-#' @export
+#' @noRd
 #'
 thresCalc <- function(rf, threshAdjust,topEndPercentage){
     threshCalc <- rf$coverage[order(rf$coverage, decreasing = TRUE)]
@@ -89,13 +89,12 @@ thresCalc <- function(rf, threshAdjust,topEndPercentage){
 
 
 #' consecutiveCheck
-#'
 #' Identifies significant positions that are consecutive
 #' @param OF Dataframe with significant positions (after initial Poisson test)
 #' @param OMF Dataframe that will be the output, specified in function this is nested in
 #' @param aPD Adjacent Peak distance speicified by user in full run
-#' @return Returns list of merged termination paeks
-#' @export
+#' @return Returns list of merged termination peaks
+#' @noRd
 #'
 consecutiveCheck <- function(OF, OMF, aPD){
     x <- 1
@@ -150,13 +149,12 @@ consecutiveCheck <- function(OF, OMF, aPD){
 
 
 #' consecutivePeakCheck
-#'
 #' Combines Proximal Peaks
 #' @param OMF OutputMergeFrame from function this is nested in
 #' @param SWR Output of file that is created in nested function
 #' @param pCD peak condensing distance established in full run
 #' @return Returns significant peaks to be fixed and output after
-#' @export
+#' @noRd
 #'
 consecutivePeakCheck <- function(OMF, SWR, pCD){
     PFC <- 1
@@ -213,16 +211,19 @@ consecutivePeakCheck <- function(OMF, SWR, pCD){
 
 
 #' Bed_Split
-#'
 #' First step of PIPETS. Takes input Bed files and splits them by strand while also assigning read coverage to each genomic position
+#' @title Split Input Bed Data By Strand
 #' @importFrom dplyr arrange distinct
 #' @importFrom stats aggregate ppois complete.cases
 #' @importFrom utils write.csv write.table read.table read.delim
 #' @param inputBedFile Input BED file that is not strand split. For PIPETS, the first column must be the chromosome name, the second column must be the start coordinate, the third column must be the stop coordinate, and the 6th column must be the strand. Columns 4 and 5 must be present but their information will not be used.
 #' @param readLength The user must input the expected length of each “proper” read from the 3’-seq protocol. PIPETS gives a +/- 2 range for detecting reads to be used in the input BED files based on distributions of read coverage in parameter testing.
 #' @return Returns a list containing the Plus Strand Reads, the Minus Strand Reads, and the user defined name for the files. Also writes out the strand split bed files to the project directory.
-#' @export
-#'
+#' @examples
+#' ## Split input bed file into stranded files without running PIPETS
+#' ## The user will be prompted to enter a string to name output files
+#' Bed_Split(inputBedFile="Test_Data.bed", readLength=58)
+#' @noRd
 #'
 Bed_Split <- function(inputBedFile,readLength){
     message("+-----------------------------------+")
@@ -277,7 +278,6 @@ Bed_Split <- function(inputBedFile,readLength){
 
 
 #' TopStrand_InitialPoisson
-#'
 #' Poisson Significant Peak Identification Test for the Top Strand Data
 #' @importFrom dplyr arrange distinct
 #' @importFrom stats aggregate ppois complete.cases
@@ -289,8 +289,7 @@ Bed_Split <- function(inputBedFile,readLength){
 #' @param pValue Choose the minimum pValue that the Poisson distribution test must pass in order to be considered significant
 #' @param topEndPercentage This parameter is used along with threshAdjust to trim off the influence exerted by high read coverage outliers. By default, it removes the top 0.01 percent of the highest read coverage positions from the calculation of the global threshold (e.x. if there are 200 positions that make up 75% of the total reads, then this parameter will take the top 2 read coverage positions and remove them from the calculation of the global threshold). This parameter can be tuned to account for datasets with outliers that would otherwise severely skew the global threshold.
 #' @return Returns a dataframe with all genomic positions that were identified as having significant read coverage.
-#' @export
-#'
+#' @noRd
 #'
 TopStrand_InitialPoisson <- function(MinusStrandReads,slidingWindowSize = 25,
     slidingWindowMovementDistance = 25,threshAdjust = 0.75,pValue = 0.005,
@@ -344,7 +343,6 @@ TopStrand_InitialPoisson <- function(MinusStrandReads,slidingWindowSize = 25,
 }
 
 #' TopStrand_InitialCondense
-#'
 #' Takes the significant top strand positions from TopStrand_InitialPoisson and condenses all proximal positions into termination "peaks"
 #' @importFrom dplyr arrange distinct
 #' @importFrom stats aggregate ppois complete.cases
@@ -352,8 +350,7 @@ TopStrand_InitialPoisson <- function(MinusStrandReads,slidingWindowSize = 25,
 #' @param TopInititalPoisson Uses the output of TopStrand_InitialPoisson as the input
 #' @param adjacentPeakDistance adjacentPeakDistance During the peak condensing step, this parameter is used to define “adjacent” for significant genomic positions. This is used to identify initial peak structures in the data. By default this value is set to 2 to ensure that single instances of loss of signal are not sufficient to prevent otherwise contiguous peak signatures from being combined.
 #' @return Returns a dataframe that contains the list of termination "peaks" for the top strand
-#' @export
-#'
+#' @noRd
 #'
 TopStrand_InitialCondense <- function(TopInititalPoisson,
     adjacentPeakDistance = 2){
@@ -377,7 +374,6 @@ TopStrand_InitialCondense <- function(TopInititalPoisson,
 }
 
 #' TopStrand_SecondaryCondense
-#'
 #' Takes the list of termination "peaks" from TopStrand_InitialCondense and condenses peaks that are proximal to each other
 #' @importFrom dplyr arrange distinct
 #' @importFrom stats aggregate ppois complete.cases
@@ -386,8 +382,7 @@ TopStrand_InitialCondense <- function(TopInititalPoisson,
 #' @param peakCondensingDistance peakCondensingDistance Following the initial peak condensing step, this parameter is used to identify peak structures in the data that are close enough to be considered part of the same termination signal. In testing, we have not identified cases in which two distinct termination signals so proximal that the default parameters incorrectly combine the signals together.
 #' @param OutputFileName A string that will be used to identify printed results files. When run with PIPETS_FullRun, this string will be input by the user in the beginning
 #' @return The method writes a csv file in the project directory that contains the results for the Top Strand termination peaks
-#' @export
-#'
+#' @noRd
 #'
 TopStrand_SecondaryCondense <- function(TopInititalCondense,
     peakCondensingDistance = 20,
@@ -408,7 +403,6 @@ TopStrand_SecondaryCondense <- function(TopInititalCondense,
 }
 
 #' CompStrand_InitialPoisson
-#'
 #' Poisson Significant Peak Identification Test for the Complement Strand Data
 #' @importFrom dplyr arrange distinct
 #' @importFrom stats aggregate ppois complete.cases
@@ -420,8 +414,7 @@ TopStrand_SecondaryCondense <- function(TopInititalCondense,
 #' @param pValue Choose the minimum pValue that the Poisson distribution test must pass in order to be considered significant
 #' @param topEndPercentage This parameter is used along with threshAdjust to trim off the influence exerted by high read coverage outliers. By default, it removes the top 0.01 percent of the highest read coverage positions from the calculation of the global threshold (e.x. if there are 200 positions that make up 75% of the total reads, then this parameter will take the top 2 read coverage positions and remove them from the calculation of the global threshold). This parameter can be tuned to account for datasets with outliers that would otherwise severely skew the global threshold.
 #' @return Returns a dataframe with all genomic positions that were identified as having significant read coverage.
-#' @export
-#'
+#' @noRd
 #'
 CompStrand_InitialPoisson <- function(PlusStrandReads,slidingWindowSize = 25,
     slidingWindowMovementDistance = 25,threshAdjust = 0.75,pValue = 0.005,
@@ -473,7 +466,6 @@ CompStrand_InitialPoisson <- function(PlusStrandReads,slidingWindowSize = 25,
 }
 
 #' CompStrand_InitialCondense
-#'
 #' Takes the significant top strand positions from CompStrand_InitialPoisson and condenses all proximal positions into termination "peaks"
 #' @importFrom dplyr arrange distinct
 #' @importFrom stats aggregate ppois complete.cases
@@ -481,8 +473,7 @@ CompStrand_InitialPoisson <- function(PlusStrandReads,slidingWindowSize = 25,
 #' @param CompInitialPoisson Uses the output of CompStrand_InitialPoisson as the input
 #' @param adjacentPeakDistance adjacentPeakDistance During the peak condensing step, this parameter is used to define “adjacent” for significant genomic positions. This is used to identify initial peak structures in the data. By default this value is set to 2 to ensure that single instances of loss of signal are not sufficient to prevent otherwise contiguous peak signatures from being combined.
 #' @return Returns a dataframe that contains the list of termination "peaks" for the complement strand
-#' @export
-#'
+#' @noRd
 #'
 CompStrand_InitialCondense <- function(CompInitialPoisson,
     adjacentPeakDistance = 2){
@@ -506,7 +497,6 @@ CompStrand_InitialCondense <- function(CompInitialPoisson,
 }
 
 #' CompStrand_SecondaryCondense
-#'
 #' Takes the list of termination "peaks" from CompStrand_InitialCondense and condenses peaks that are proximal to each other
 #' @importFrom dplyr arrange distinct
 #' @importFrom stats aggregate ppois complete.cases
@@ -515,8 +505,7 @@ CompStrand_InitialCondense <- function(CompInitialPoisson,
 #' @param peakCondensingDistance peakCondensingDistance Following the initial peak condensing step, this parameter is used to identify peak structures in the data that are close enough to be considered part of the same termination signal. In testing, we have not identified cases in which two distinct termination signals so proximal that the default parameters incorrectly combine the signals together.
 #' @param OutputFileName A string that will be used to identify printed results files. When run with PIPETS_FullRun, this string will be input by the user in the beginning
 #' @return The method writes a csv file in the project directory that contains the results for the Complement Strand termination peaks
-#' @export
-#'
+#' @noRd
 #'
 CompStrand_SecondaryCondense <- function(CompInitialCondense,
     peakCondensingDistance = 20,
@@ -537,7 +526,7 @@ CompStrand_SecondaryCondense <- function(CompInitialCondense,
 
 
 #' PIPETS_FullRun
-#'
+#' @title Analyze 3'-seq Data with PIPETS
 #' Poisson Identification of PEaks from Term-Seq data. This is the full run method that begins with input Bed file and returns the strand split results
 #' @importFrom dplyr arrange distinct
 #' @importFrom stats aggregate ppois complete.cases
@@ -551,6 +540,19 @@ CompStrand_SecondaryCondense <- function(CompInitialCondense,
 #' @param threshAdjust This parameter is used to establish a global cutoff threshold informed by the data. PIPETS sorts the genomic positions of each strand from highest to lowest, and starts with the highest read coverage position and subtracts that value from the total read coverage for that strand. By default, this continues until 75% of the total read coverage has been accounted for. Increasing the percentage (e.x. 0.9) will lower the strictness of the cutoff, thus increasing the total number of significant results.
 #' @param pValue Choose the minimum pValue that the Poisson distribution test must pass in order to be considered significant
 #' @param topEndPercentage This parameter is used along with threshAdjust to trim off the influence exerted by high read coverage outliers. By default, it removes the top 0.01 percent of the highest read coverage positions from the calculation of the global threshold (e.x. if there are 200 positions that make up 75% of the total reads, then this parameter will take the top 2 read coverage positions and remove them from the calculation of the global threshold). This parameter can be tuned to account for datasets with outliers that would otherwise severely skew the global threshold.
+#' @examples
+#' ## When run, the user will be prompted to provide a string for file names
+#' ## During the run, PIPETS will output the minumum read coverage cutoff for each strand
+#' ## After completion, the output files will be created in the R project directory
+#'
+#' ## For run with defualt strictness of analysis
+#' PIPETS_FullRun(inputBedFile = "TestData.bed", readLength = 58)
+#'
+#' ## For a more strict run (can be run for files with high total read depth)
+#' PIPETS_FullRun(inputBedFile = "TestData.bed", readLength = 58, threshAdjust = 0.6)
+#'
+#' ## For a less strict run (for data with low total read depth)
+#' PIPETS_FullRun(inputBedFile = "TestData.bed", readLength = 58, threshAdjust = 0.9)
 #'
 #' @return PIPETS outputs strand specific results files as well as strand specific bed files to the directory that the R project is in.
 #' @export

@@ -2,7 +2,8 @@
 % Please edit documentation in R/Functions.R
 \name{PIPETS_FullRun}
 \alias{PIPETS_FullRun}
-\title{PIPETS_FullRun}
+\title{Analyze 3'-seq Data with PIPETS
+Poisson Identification of PEaks from Term-Seq data. This is the full run method that begins with input Bed file and returns the strand split results}
 \usage{
 PIPETS_FullRun(
   inputBedFile,
@@ -39,5 +40,20 @@ PIPETS_FullRun(
 PIPETS outputs strand specific results files as well as strand specific bed files to the directory that the R project is in.
 }
 \description{
-Poisson Identification of PEaks from Term-Seq data. This is the full run method that begins with input Bed file and returns the strand split results
+PIPETS_FullRun
+}
+\examples{
+## When run, the user will be prompted to provide a string for file names
+## During the run, PIPETS will output the minumum read coverage cutoff for each strand
+## After completion, the output files will be created in the R project directory
+
+## For run with defualt strictness of analysis
+PIPETS_FullRun(inputBedFile = "TestData.bed", readLength = 58)
+
+## For a more strict run (can be run for files with high total read depth)
+PIPETS_FullRun(inputBedFile = "TestData.bed", readLength = 58, threshAdjust = 0.6)
+
+## For a less strict run (for data with low total read depth)
+PIPETS_FullRun(inputBedFile = "TestData.bed", readLength = 58, threshAdjust = 0.9)
+
 }
