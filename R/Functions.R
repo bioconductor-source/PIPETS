@@ -29,26 +29,31 @@ inputCheck <- function(inputBedFile,readLength,slidingWindowSize,
                                header = FALSE, stringsAsFactors = FALSE))
     } else if(!file_test("-f", as.character(inputBedFile))){
         kicker <- 1
-        message("Input File Not Found")
+        warning("Input File Not Found")
         return(kicker)
     }
     while(kicker ==0 ){
-        if(is.na(test)){
-            message("Input file path not found")
-            kicker <- 1
-        }
-        else if(nrow(test) < 100){
-            message("Input file is too short")
+        if(nrow(test) < 100){
+            warning("Input file is too short")
             kicker <- 1
         }
         else if(ncol(test) < 4){
-            message("Not enough columns in input file")
+            warning("Not enough columns in input file")
             kicker <- 1
         }
-        if(slidingWindowSize ==0 | slidingWindowMovementDistance ==0 |
-           slidingWindowMovementDistance == 0 | threshAdjust ==0 |
-           pValue == 0 | adjacentPeakDistance ==0 | peakCondensingDistance == 0){
-            message("One or more parameters is 0 and PIPETS cannot run")
+        if(!is.numeric(slidingWindowSize)|
+           !is.numeric(slidingWindowMovementDistance)|
+           !is.numeric(topEndPercentage)|!is.numeric(threshAdjust)|
+           !is.numeric(pValue)|!is.numeric(adjacentPeakDistance)|
+           !is.numeric(peakCondensingDistance)|!is.numeric(readLength)){
+            warning("One or more numerical parameters is not a number and PIPETS cannot run")
+            kicker <- 1
+            break
+        }
+        if(slidingWindowSize == 0 | slidingWindowMovementDistance == 0 |
+           topEndPercentage == 0 | threshAdjust ==0 | readLength == 0 |
+           pValue == 0|adjacentPeakDistance ==0 | peakCondensingDistance == 0){
+            warning("One or more parameters is 0 and PIPETS cannot run")
             kicker <- 1
         }
     }
@@ -546,13 +551,13 @@ CompStrand_SecondaryCondense <- function(CompInitialCondense,
 #' ## After completion, the output files will be created in the R project directory
 #'
 #' ## For run with defualt strictness of analysis
-#' PIPETS_FullRun(inputBedFile = "TestData.bed", readLength = 58)
+#' PIPETS_FullRun(inputBedFile = "PIPETS_TestData.bed", readLength = 58)
 #'
 #' ## For a more strict run (can be run for files with high total read depth)
-#' PIPETS_FullRun(inputBedFile = "TestData.bed", readLength = 58, threshAdjust = 0.6)
+#' PIPETS_FullRun(inputBedFile = "PIPETS_TestData.bed", readLength = 58, threshAdjust = 0.6)
 #'
 #' ## For a less strict run (for data with low total read depth)
-#' PIPETS_FullRun(inputBedFile = "TestData.bed", readLength = 58, threshAdjust = 0.9)
+#' PIPETS_FullRun(inputBedFile = "PIPETS_TestData.bed", readLength = 58, threshAdjust = 0.9)
 #'
 #' @return PIPETS outputs strand specific results files as well as strand specific bed files to the directory that the R project is in.
 #' @export
@@ -566,7 +571,7 @@ PIPETS_FullRun <- function(inputBedFile,readLength,slidingWindowSize = 25,
                          pValue,topEndPercentage,
                          adjacentPeakDistance, peakCondensingDistance)
     if(kicker ==1){
-        message("PIPETS cannot run, see above error")
+        #warning("PIPETS cannot run, see above error")
         return()
     }
     AllReads <- Bed_Split(inputBedFile, readLength)

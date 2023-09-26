@@ -48,12 +48,12 @@ PIPETS_FullRun
 ## After completion, the output files will be created in the R project directory
 
 ## For run with defualt strictness of analysis
-PIPETS_FullRun(inputBedFile = "TestData.bed", readLength = 58)
+PIPETS_FullRun(inputBedFile = "PIPETS_TestData.bed", readLength = 58)
 
 ## For a more strict run (can be run for files with high total read depth)
-PIPETS_FullRun(inputBedFile = "TestData.bed", readLength = 58, threshAdjust = 0.6)
+PIPETS_FullRun(inputBedFile = "PIPETS_TestData.bed", readLength = 58, threshAdjust = 0.6)
 
 ## For a less strict run (for data with low total read depth)
-PIPETS_FullRun(inputBedFile = "TestData.bed", readLength = 58, threshAdjust = 0.9)
+PIPETS_FullRun(inputBedFile = "PIPETS_TestData.bed", readLength = 58, threshAdjust = 0.9)
 
 }
