@@ -32,30 +32,32 @@ inputCheck <- function(inputBedFile,readLength,slidingWindowSize,
         warning("Input File Not Found")
         return(kicker)
     }
-    while(kicker ==0 ){
-        if(nrow(test) < 100){
-            warning("Input file is too short")
-            kicker <- 1
-        }
-        else if(ncol(test) < 4){
-            warning("Not enough columns in input file")
-            kicker <- 1
-        }
-        if(!is.numeric(slidingWindowSize)|
-           !is.numeric(slidingWindowMovementDistance)|
-           !is.numeric(topEndPercentage)|!is.numeric(threshAdjust)|
-           !is.numeric(pValue)|!is.numeric(adjacentPeakDistance)|
-           !is.numeric(peakCondensingDistance)|!is.numeric(readLength)){
-            warning("One or more numerical parameters is not a number and PIPETS cannot run")
-            kicker <- 1
-            break
-        }
-        if(slidingWindowSize == 0 | slidingWindowMovementDistance == 0 |
-           topEndPercentage == 0 | threshAdjust ==0 | readLength == 0 |
-           pValue == 0|adjacentPeakDistance ==0 | peakCondensingDistance == 0){
-            warning("One or more parameters is 0 and PIPETS cannot run")
-            kicker <- 1
-        }
+    if(nrow(test) < 100){
+        warning("Input file is too short")
+        kicker <- 1
+        return(kicker)
+    }
+    else if(ncol(test) < 4){
+        warning("Not enough columns in input file")
+        kicker <- 1
+        return(kicker)
+    }
+    if(!is.numeric(slidingWindowSize)|
+       !is.numeric(slidingWindowMovementDistance)|
+       !is.numeric(topEndPercentage)|!is.numeric(threshAdjust)|
+       !is.numeric(pValue)|!is.numeric(adjacentPeakDistance)|
+       !is.numeric(peakCondensingDistance)|!is.numeric(readLength)){
+        warning("One or more numerical parameters is not a number and PIPETS 
+                cannot run")
+        kicker <- 1
+        return(kicker)
+    }
+    if(slidingWindowSize == 0 | slidingWindowMovementDistance == 0 |
+       topEndPercentage == 0 | threshAdjust ==0 | readLength == 0 |
+       pValue == 0|adjacentPeakDistance ==0 | peakCondensingDistance == 0){
+        warning("One or more parameters is 0 and PIPETS cannot run")
+        kicker <- 1
+        return(kicker)
     }
     return(kicker)
 }
@@ -101,17 +103,17 @@ thresCalc <- function(rf, threshAdjust,topEndPercentage){
 #' @return Returns list of merged termination peaks
 #' @noRd
 #'
-consecutiveCheck <- function(OF, OMF, aPD){
+consecutiveCheck <- function(OF, OMF, aPD, TPH){
     x <- 1
     peakFrameCoord <- 1
-    for(x in seq_along(outputFrame[,1])){
+    for(x in seq_along(OF[,1])){
         tempSubset <- ""
-        if(x < nrow(OF) & (OF$stop[x+1] - OF$stop[x]) <= aPD ){
-            TPH <- rbind(TPH,OF[x,])
+        if(x < nrow(OF) & (OF$stop[x+1] - OF$stop[x]) <= aPD){
+            TPH <- rbind(TPH,OF[x,, drop=FALSE])
         }
         else if(x == nrow(OF)){
             if((OF$stop[x] - OF$stop[(x-1)]) <= aPD) {
-                TPH <- rbind(TPH,OF[x,])
+                TPH <- rbind(TPH,OF[x,, drop=FALSE])
                 OMF$chrom[peakFrameCoord] <- OF$chrom[1]
                 OMF$strand[peakFrameCoord] <- OF$strand[1]
                 tS <- subset(TPH, coverage == max(TPH$coverage))
@@ -133,7 +135,7 @@ consecutiveCheck <- function(OF, OMF, aPD){
             }
         }
         else {
-            TPH <- rbind(TPH,OF[x,])
+            TPH <- rbind(TPH,OF[x,, drop=FALSE])
             OMF$chrom[peakFrameCoord] <- OF$chrom[1]
             OMF$strand[peakFrameCoord] <- OF$strand[1]
             tS <- subset(TPH, coverage == max(TPH$coverage))
@@ -161,7 +163,7 @@ consecutiveCheck <- function(OF, OMF, aPD){
 #' @return Returns significant peaks to be fixed and output after
 #' @noRd
 #'
-consecutivePeakCheck <- function(OMF, SWR, pCD){
+consecutivePeakCheck <- function(OMF, SWR, pCD,TWH){
     PFC <- 1
     for(x in seq_along(OMF[,1])){
         tempSubset <- ""
@@ -192,7 +194,7 @@ consecutivePeakCheck <- function(OMF, SWR, pCD){
                     OMF$HighestPeak[x])}
         }
         else {
-            TWH <- rbind(TWH,OMF[x,])
+            TWH <- rbind(TWH,OMF[x,, drop=FALSE])
             SWR$chrom[PFC] <- OMF$chrom[1]
             SWR$strand[PFC] <- OMF$strand[1]
             tS <- subset(TWH,HighestPeakReadCoverage == max(TWH[,4]))
@@ -230,13 +232,13 @@ consecutivePeakCheck <- function(OMF, SWR, pCD){
 #' Bed_Split(inputBedFile="Test_Data.bed", readLength=58)
 #' @noRd
 #'
-Bed_Split <- function(inputBedFile,readLength){
+Bed_Split <- function(inputBedFile,readLength, OutputFileID){
     message("+-----------------------------------+")
-    OutputFileName <- readline(prompt="Please Enter the Sample Name: ")
+    OutputFileName <- OutputFileID
     message("Splitting Input Bed File By Strand")
     rB <- read.delim(file = as.character(inputBedFile),
         header = FALSE, stringsAsFactors = FALSE)
-    startBed <- rB[,c(1,2,3)]
+    startBed <- rB[,c(1,2,3), drop=FALSE]
     if(length(names(rB[grepl("-", rB[1,], fixed = TRUE)])) >0){
         startBed$V4 <- rB[,names(rB[grepl('-', rB[1,], fixed = TRUE)])]
     } else if (length(names(rB[grepl("+", rB[1,], fixed = TRUE)])) >0){
@@ -244,9 +246,11 @@ Bed_Split <- function(inputBedFile,readLength){
   }
     colnames(startBed) <- c("chrom","start","stop","strand")
     startBed$coverage <- 0
-    startBed <- startBed[ , c("chrom", "start", "stop", "coverage", "strand")]
-    PSR <- startBed[startBed$strand %in% "+",]
-    PSR <- PSR[(PSR$stop-PSR$start) %in% (readLength-2):(readLength+2),]
+    startBed <- startBed[ , c("chrom", "start", "stop", "coverage", "strand"),
+                          drop=FALSE]
+    PSR <- startBed[startBed$strand %in% "+",, drop=FALSE]
+    PSR <- PSR[(PSR$stop-PSR$start) %in% (readLength-2):(readLength+2),,
+               drop=FALSE]
     PSC <- as.data.frame(table(PSR$stop))
     PSR <- distinct(PSR, stop, .keep_all = TRUE)
     PSR <- arrange(PSR, stop)
@@ -257,9 +261,10 @@ Bed_Split <- function(inputBedFile,readLength){
     PSR$chrom <- tempChrom
     PSR$stop <- PSR$start + readLength
     PSR$strand <- tempStrand
-    PSR <- PSR[,c("chrom","start","stop","coverage","strand")]
-    MSR <- startBed[startBed$strand %in% "-",]
-    MSR <- MSR[(MSR$stop-MSR$start) %in% (readLength-2):(readLength+2),]
+    PSR <- PSR[,c("chrom","start","stop","coverage","strand"), drop=FALSE]
+    MSR <- startBed[startBed$strand %in% "-",, drop=FALSE]
+    MSR <- MSR[(MSR$stop-MSR$start) %in% (readLength-2):(readLength+2),,
+               drop=FALSE]
     MSC <- as.data.frame(table(MSR$start))
     MSR <- distinct(MSR, start, .keep_all = TRUE)
     MSR <- arrange(MSR, start)
@@ -270,7 +275,7 @@ Bed_Split <- function(inputBedFile,readLength){
     MSR$chrom <- tempChrom
     MSR$start <- MSR$stop - readLength
     MSR$strand <- tempStrand
-    MSR <- MSR[,c("chrom","start","stop","coverage","strand")]
+    MSR <- MSR[,c("chrom","start","stop","coverage","strand"), drop=FALSE]
     write.table(PSR,
     file = paste(as.character(OutputFileName),"PlusStrandCounts.bed", sep = "_")
     ,quote = FALSE, row.names = FALSE, col.names = FALSE)
@@ -311,7 +316,8 @@ TopStrand_InitialPoisson <- function(MinusStrandReads,slidingWindowSize = 25,
     SWF$position <- seq_along(SWF[,1])
     posThreshold <- thresCalc(rf = MSR, threshAdjust = threshAdjust,
         topEndPercentage = topEndPercentage)
-    message(paste("Top Strand Cutoff", posThreshold, sep = " "))
+    toUser <- paste("Top Strand Cutoff", posThreshold, sep = " ")
+    message(as.character(toUser))
     nm <- "coverage"
     SWF[nm] <- lapply(nm, function(x) MSR[[x]][match(SWF$position, MSR$stop)])
     SWF$coverage[is.na(SWF$coverage)] <- 0
@@ -325,7 +331,8 @@ TopStrand_InitialPoisson <- function(MinusStrandReads,slidingWindowSize = 25,
             if(SWF$coverage[y] >= 10){
                 probabilityAtY <- (1- ppois(q = SWF$coverage[y], lambda = AOW))
                 if(SWF$coverage[y] >= posThreshold & probabilityAtY <= pValue){
-                    outputFrame <- rbind(MSR[MSR$stop == SWF$position[y],],
+                    outputFrame <- rbind(MSR[MSR$stop == SWF$position[y],,
+                                             drop=FALSE],
                     outputFrame)
                 }
             }
@@ -341,8 +348,8 @@ TopStrand_InitialPoisson <- function(MinusStrandReads,slidingWindowSize = 25,
             z <- (z + SWMD)
         }
     }
-    outputFrame <- outputFrame[!duplicated(outputFrame),]
-    outputFrame <- outputFrame[order(outputFrame$stop),]
+    outputFrame <- outputFrame[!duplicated(outputFrame),, drop=FALSE]
+    outputFrame <- outputFrame[order(outputFrame$stop),,drop=FALSE]
     rownames(outputFrame) <- seq_along(outputFrame[,1])
     return(outputFrame)
 }
@@ -367,8 +374,8 @@ TopStrand_InitialCondense <- function(TopInititalPoisson,
     "HighestPeakReadCoverage","LowestPeakCoord",
     "HighestPeakCoord")
     OMF <- consecutiveCheck(OF = outputFrame, OMF = OMF,
-        aPD = adjacentPeakDistance)
-    OMF_Top <- OMF[complete.cases(OMF),]
+        aPD = adjacentPeakDistance, TPH = TPH)
+    OMF_Top <- OMF[complete.cases(OMF),,drop=FALSE]
     rownames(OMF_Top) <- seq_along(OMF_Top[,1])
     OMF_Top$LowestPeakCoord <- as.numeric(OMF_Top$LowestPeakCoord)
     OMF_Top$HighestPeakCoord <- as.numeric(OMF_Top$HighestPeakCoord)
@@ -399,9 +406,10 @@ TopStrand_SecondaryCondense <- function(TopInititalCondense,
     SWR_Top <- as.data.frame(matrix(nrow = 1, ncol = 6))
     colnames(SWR_Top) <- c("chrom","strand","HighestPeak",
         "HighestPeakReadCoverage","LowestPeakCoord","HighestPeakCoord")
-    SWR_Top <- consecutivePeakCheck(OMF_Top, SWR_Top, peakCondensingDistance)
-    SWR_Top <- SWR_Top[complete.cases(SWR_Top),]
-    SWR_Top <- SWR_Top[,-2]
+    SWR_Top <- consecutivePeakCheck(OMF_Top, SWR_Top, peakCondensingDistance, 
+                                    TWH)
+    SWR_Top <- SWR_Top[complete.cases(SWR_Top),, drop=FALSE]
+    SWR_Top <- SWR_Top[,-2,drop=FALSE]
     write.csv(SWR_Top,
         file = paste(as.character(OFN),"topStrandResults.csv", sep = "_"),
         row.names = FALSE)
@@ -435,7 +443,8 @@ CompStrand_InitialPoisson <- function(PlusStrandReads,slidingWindowSize = 25,
     SWF$position <- seq_along(SWF[,1])
     compThreshold <- thresCalc(rf = PSR,threshAdjust = threshAdjust,
         topEndPercentage = topEndPercentage)
-    message(paste("Complement Strand Cutoff", compThreshold, sep = " "))
+    toUser <- paste("Complement Strand Cutoff", compThreshold, sep = " ")
+    message(as.character(toUser))
     nm <- "coverage"
     SWF[nm] <- lapply(nm, function(x) PSR[[x]][match(SWF$position, PSR$start)])
     SWF$coverage[is.na(SWF$coverage)] <- 0
@@ -464,8 +473,8 @@ CompStrand_InitialPoisson <- function(PlusStrandReads,slidingWindowSize = 25,
             z <- (z + SWMD)
         }
     }
-    OF <- OF[!duplicated(OF),]
-    OF <- OF[order(OF$stop),]
+    OF <- OF[!duplicated(OF),,drop=FALSE]
+    OF <- OF[order(OF$stop),,drop=FALSE]
     rownames(OF) <- seq_along(OF[,1])
     return(OF)
 }
@@ -482,16 +491,16 @@ CompStrand_InitialPoisson <- function(PlusStrandReads,slidingWindowSize = 25,
 #'
 CompStrand_InitialCondense <- function(CompInitialPoisson,
     adjacentPeakDistance = 2){
-    outputFrame <- CompInitialPoisson
-    tempPeakHold <- as.data.frame(matrix(nrow = 0, ncol = ncol(outputFrame)))
-    colnames(tempPeakHold) <- colnames(outputFrame)
+    OF <- CompInitialPoisson
+    TPH <- as.data.frame(matrix(nrow = 0, ncol = ncol(OF)))
+    colnames(TPH) <- colnames(OF)
     OMF <- as.data.frame(matrix(nrow = 1, ncol = 6))
     colnames(OMF) <- c("chrom","strand","HighestPeak",
         "HighestPeakReadCoverage",
         "LowestPeakCoord","HighestPeakCoord")
-    OMF <- consecutiveCheck(OF = outputFrame, OMF = OMF,
-        aPD = adjacentPeakDistance)
-    OMF_Comp <- OMF[complete.cases(OMF),]
+    OMF <- consecutiveCheck(OF = OF, OMF = OMF,
+        aPD = adjacentPeakDistance, TPH = TPH)
+    OMF_Comp <- OMF[complete.cases(OMF),,drop=FALSE]
     rownames(OMF_Comp) <- seq_along(OMF_Comp[,1])
     OMF_Comp$LowestPeakCoord <- as.numeric(OMF_Comp$LowestPeakCoord)
     OMF_Comp$HighestPeakCoord <- as.numeric(OMF_Comp$HighestPeakCoord)
@@ -522,9 +531,10 @@ CompStrand_SecondaryCondense <- function(CompInitialCondense,
     SWR_Comp <- as.data.frame(matrix(nrow = 1, ncol = 6))
     colnames(SWR_Comp) <- c("chrom","strand","HighestPeak",
         "HighestPeakReadCoverage","LowestPeakCoord","HighestPeakCoord")
-    SWR_Comp <- consecutivePeakCheck(OMF_Comp, SWR_Comp, peakCondensingDistance)
-    SWR_Comp <- SWR_Comp[complete.cases(SWR_Comp),]
-    SWR_Comp <- SWR_Comp[,-2]
+    SWR_Comp <- consecutivePeakCheck(OMF_Comp, SWR_Comp, peakCondensingDistance,
+                                     TWH)
+    SWR_Comp <- SWR_Comp[complete.cases(SWR_Comp),,drop=FALSE]
+    SWR_Comp <- SWR_Comp[,-2,drop=FALSE]
     write.csv(SWR_Comp, file = paste(as.character(OFN),
         "CompStrandResults.csv", sep = "_"),  row.names = FALSE)
 }
@@ -537,6 +547,7 @@ CompStrand_SecondaryCondense <- function(CompInitialCondense,
 #' @importFrom stats aggregate ppois complete.cases
 #' @importFrom utils write.csv write.table read.table read.delim
 #' @param inputBedFile Input BED file that is not strand split. For PIPETS, the first column must be the chromosome name, the second column must be the start coordinate, the third column must be the stop coordinate, and the 6th column must be the strand. Columns 4 and 5 must be present but their information will not be used.
+#' @param OutputFileID User defined header for the output files of PIPETS. Will be the prefix for output bed and csv files.
 #' @param readLength The user must input the expected length of each “proper” read from the 3’-seq protocol. PIPETS gives a +/- 2 range for detecting reads to be used in the input BED files based on distributions of read coverage in parameter testing.
 #' @param slidingWindowSize This parameter establishes the distance up and down stream of each position that a sliding window will be created around. The default value is 25, and this will result in a sliding window of total size 51 (25 upstream + position (1) + 25 downstream).
 #' @param slidingWindowMovementDistance This parameter sets the distance that the sliding window will be moved. By default, it is set to move by half of the sliding window size in order to ensure that almost every position in the data is tested twice.
@@ -551,18 +562,22 @@ CompStrand_SecondaryCondense <- function(CompInitialCondense,
 #' ## After completion, the output files will be created in the R project directory
 #'
 #' ## For run with defualt strictness of analysis
-#' PIPETS_FullRun(inputBedFile = "PIPETS_TestData.bed", readLength = 58)
+#' PIPETS_FullRun(inputBedFile = "PIPETS_TestData.bed", readLength = 58, 
+#' OutputFileID = "Antibiotic1")
 #'
 #' ## For a more strict run (can be run for files with high total read depth)
-#' PIPETS_FullRun(inputBedFile = "PIPETS_TestData.bed", readLength = 58, threshAdjust = 0.6)
+#' PIPETS_FullRun(inputBedFile = "PIPETS_TestData.bed", readLength = 58, threshAdjust = 0.6, 
+#' OutputFileID = "Antibiotic1_Strict")
 #'
 #' ## For a less strict run (for data with low total read depth)
-#' PIPETS_FullRun(inputBedFile = "PIPETS_TestData.bed", readLength = 58, threshAdjust = 0.9)
+#' PIPETS_FullRun(inputBedFile = "PIPETS_TestData.bed", readLength = 58, threshAdjust = 0.9, 
+#' OutputFileID = "Antibiotic1_Lax")
 #'
 #' @return PIPETS outputs strand specific results files as well as strand specific bed files to the directory that the R project is in.
 #' @export
 #'
-PIPETS_FullRun <- function(inputBedFile,readLength,slidingWindowSize = 25,
+PIPETS_FullRun <- function(inputBedFile,readLength,OutputFileID,
+                           slidingWindowSize = 25,
     slidingWindowMovementDistance = 25,threshAdjust = 0.75,
     pValue = 0.005,topEndPercentage= 0.01,
     adjacentPeakDistance = 2, peakCondensingDistance = 20){
@@ -571,10 +586,9 @@ PIPETS_FullRun <- function(inputBedFile,readLength,slidingWindowSize = 25,
                          pValue,topEndPercentage,
                          adjacentPeakDistance, peakCondensingDistance)
     if(kicker ==1){
-        #warning("PIPETS cannot run, see above error")
         return()
     }
-    AllReads <- Bed_Split(inputBedFile, readLength)
+    AllReads <- Bed_Split(inputBedFile, readLength, OutputFileID)
     message("+-----------------------------------+")
     message("Performing Top Strand Analysis")
     TopInititalPoisson <- TopStrand_InitialPoisson(

@@ -1,28 +1,28 @@
 ---
 title: "Analyzing 3'-seq/Term-seq Data with PIPETS"
+author: "Author: Quinlan Furumo"
+date: "Last update: `r format(Sys.time(), '%d %B, %Y')`" 
 output:
-  rmarkdown::html_document:
-    toc: TRUE
-  html_document:
-    theme: default
-    toc: TRUE
-    toc_depth: 6
-    toc_width: 200
-    toc_float: FALSE
+  BiocStyle::html_document:
+    toc: true
+    toc_float:
+        collapsed: true
+        smooth_scroll: true
+    toc_depth: 3
+    fig_caption: yes
+    code_folding: show
+    number_sections: false
 vignette: >
-  %\VignetteIndexEntry{PIPETS}
-  %\VignetteEngine{knitr::rmarkdown}
-  %\VignetteEncoding{UTF-8}
+    %\VignetteIndexEntry{PIPETS}
+    %\VignetteEngine{knitr::rmarkdown}
+    %\VignetteEncoding{UTF-8}  
+fontsize: 14pt
+type: docs
+weight: 11
 ---
+  
 
-```{r, include = FALSE, eval=FALSE}
-knitr::opts_chunk$set(
-  collapse = TRUE,
-  comment = "#>"
-)
-```
-
-# Introduction
+## Introduction
 
 Bacteria rely on rapid alteration of transcription termination to regulate their
 response to envrionmental perturbations. Premature termination of transcripts as
@@ -39,20 +39,35 @@ statistically higher than the surrounding noise. These termination peaks can be
 used to identify shifts in bacterial response and give a better understanding of
 a very important set of targets for ongoing antimicrobial development.
 
-# Quick Start
 
-## Basic PIPETS Run
-Here we show the basic walkthrough of running PIPETS on an input Bed file. The
-only two parameters that need to be specified to run PIPETS are `inputBedFile`
-and the expected `readLength` from the experiment. Running the below
-code will prompt you to give a name for the output files, and PIPETS will run
-all of the analysis from there.
+## Quick Start
 
+### Installation
+To install PIPETS, use Bioconductor's BiocManager package.
 ```{r echo=TRUE, message=FALSE, eval=FALSE}
-PIPETS_FullRun(inputBedFile = "~/path/to/bed/file", readLength = X)
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+BiocManager::install("PIPETS")
 ```
 
-## PIPETS Output
+
+### Basic PIPETS Run
+Here we show the basic walkthrough of running PIPETS on an input Bed file. The
+only three parameters that need to be specified to run PIPETS 
+are `inputBedFile`, the expected `readLength`, and the prefix for the output 
+file name `OutputFileID`. 
+
+```{r echo=TRUE, message=FALSE, eval=FALSE}
+
+library(PIPETS)
+
+PIPETS_FullRun(inputBedFile = "~/path/to/bed/file", readLength = 58, 
+               OutputFileID = "ExampleResultsRun")
+
+```
+
+### PIPETS Output
 Per input Bed file, PIPETS will create 4 output files in the R directory. All
 output files will begin with the user defined file name. 
 
@@ -61,7 +76,7 @@ PIPETS takes the input Bed file, separates the Plus-Strand (+) and the
 Complement-Strand (-) reads and counts how many reads are assigned to each 
 genomic coordinate. 
 
-```{r, echo=FALSE, out.width="50%", fig.align = 'center'}
+```{r, echo=FALSE, out.width="100%", fig.align = 'center'}
 knitr::include_graphics("Sample_PIPETS_Smaller.png")
 ```
 
@@ -75,21 +90,13 @@ to recognize the shape of imperfect bacterial termination by including the full
 range of each peak.
 
 
-```{r, echo=FALSE, out.width="75%", fig.align = 'center'}
+```{r, echo=FALSE, out.width="125%", fig.align = 'center'}
 knitr::include_graphics("Sample_PIPETS_TotalOutput.png")
 ```
 
-# Installation
-To install PIPETS, use Bioconductor's BiocManager package.
-```{r echo=TRUE, message=FALSE, eval=FALSE}
-if (!require("BiocManager", quietly = TRUE))
-    install.packages("BiocManager")
-
-BiocManager::install("PIPETS")
-```
 
 
-# Detailed Walkthrough
+## Detailed Walkthrough
 Term-seq/3'seq have allowed for the study of bacterial termination in a high
 throughput manner. While there is a growing amount of studies using this data
 to answer biological questions, there are still few robust analysis methods that
@@ -102,7 +109,7 @@ surrounding noise and provide termination results for all genomic contexts, not
 just regions near genes. PIPETS is also the first term-seq/3'-seq analysis
 method that is easily available on Bioconductor.
 
-## Input Data Specifications
+### Input Data Specifications
 
 PIPETS takes in aligned term-seq/3'-seq reads in 
 [Bed format](https://genome.ucsc.edu/FAQ/FAQformat.html#format1).
@@ -118,13 +125,13 @@ treated equally during significance testing. PIPETS' output files contain
 the genomic coordinates for all results, making downstream gene association
 easy.
 
-## Method Steps
+### Method Steps
 
 PIPETS performs data analysis in three steps which takes raw Bed file 
 term-seq/3'-seq reads and outputs a list of significant termination peaks for 
 each strand. This section has a more detailed walkthrough of each step.
 
-### Step One: Poisson Test to Identify Significant Positions
+#### Step One: Poisson Test to Identify Significant Positions
 
 The first step of PIPETS is to identify all genomic positions with termination
 read coverage that is statistically significantly higher than that of the 
@@ -148,7 +155,7 @@ its read coverage to the average read coverage of all positions in the window.
 If its coverage is significantly higher than expected from the average of the 
 window, then it is identified as significant.
 
-```{r, echo=FALSE, out.width="85%", fig.align = 'center'}
+```{r, echo=FALSE, out.width="150%", fig.align = 'center'}
 knitr::include_graphics("PIPETS_StepOne_One.png")
 ```
 
@@ -158,7 +165,7 @@ tests half of the positions a second time, increasing the potential for
 positions with read coverage that is overshadowed by nearby outliers to be
 tested again, increasing the sensitivity of PIPETS.
 
-```{r, echo=FALSE, out.width="85%", fig.align = 'center'}
+```{r, echo=FALSE, out.width="150%", fig.align = 'center'}
 knitr::include_graphics("PIPETS_StepOne_Two.png")
 ```
 
@@ -170,7 +177,7 @@ is often signal surrounding true termination positions. The next step of PIPETS
 processes these positions and addresses the data architecture of termination 
 "peaks".
 
-### Step Two: Condensing of Proximal Significant Positions 
+#### Step Two: Condensing of Proximal Significant Positions 
 
 Step two of PIPETS begins with the list of all genomic positions with 
 termination read coverage that is significantly higher than their surrounding
@@ -188,12 +195,12 @@ and the 3'-most and 5'-most coordinates are saved. This both reduces the total
 number of results that need to be analyzed without discarding relevant data
 about the results.
 
-```{r, echo=FALSE, out.width="85%", fig.align = 'center'}
+```{r, echo=FALSE, out.width="150%", fig.align = 'center'}
 knitr::include_graphics("PIPETS_StepTwo_One.png")
 ```
 
 
-### Step Three: Condensing of Proximal Significant Peaks
+#### Step Three: Condensing of Proximal Significant Peaks
 
 Step three of PIPETS is similar to step two, but instead of condensing 
 consecutive significant positions, it condenses proximal significant peaks. This
@@ -205,20 +212,20 @@ cases of this distance causing PIPETS to combine two independent signals. After
 this step has completed running, PIPETS will output the strand specific results
 files.
 
-## Parameters
+### Parameters
 PIPETS requires the user to input two parameters in order to function: the path
 to the input Bed file, and the expected read length. The remaining parameters
 have defaults that have been established based on parameter testing of the data
 in the original PIPETS publication. 
 
-### slidingWindowSize
+#### slidingWindowSize
 slidingWindowSize defines the total size of the sliding window that is used in
 the first step of PIPETS. The default is set to 25, which will create a sliding
 window of size 51 (the first sliding window is created on the 26th genomic 
 position by default, and extends 25 bp upstream and downstream of that 
 postition).
 
-### slidingWindowMovementDistance
+#### slidingWindowMovementDistance
 slidingWindowMovementDistance defines the distance that the sliding window moves
 during the first step of PIPETS. By default it is set to 25. This ensures that
 almost every position in the input data is tested twice, increasing the 
@@ -229,7 +236,7 @@ much smaller than the slidingWindowSize (which in turn would test most
 positions in the data more than two times) had diminishing returns on increasing
 the sensitivity, and caused higher run times.
 
-### adjacentPeakDistance
+#### adjacentPeakDistance
 adjacentPeakDistance is used in the second step of PIPETS to combine signal from
 adjacent signficant termination positions. By default this is set to 2, meaning
 that if two significant positions are within 2 bp of each other, they are added
@@ -238,13 +245,13 @@ impact, but by keeping above 1, we are ensuring that loss of signal due to
 technical problems does not create situations in which very proximal signal is
 confused for separate termination results.
 
-### peakCondensingDistance
+#### peakCondensingDistance
 peakCondensingDistance is used in the third step of PIPETS to combine signal 
 from proximal termination peaks. By default this is set to 20. It is used to
 test if peaks are close enough together to be from the same termination signal,
 or if they are sufficiently far away to be distinct termination sites.
 
-### threshAdjust
+#### threshAdjust
 threshAdjust is used to establish a global cutoff for minimum read coverage for
 the input data. By default it is set to 0.75. This parameter describes the 
 percentage of the total read coverage that should be used to inform an "average"
@@ -254,11 +261,11 @@ read coverage levels (and are likely too high to be the result of biological
 or technical noise) that can be used to define an expected read coverage level
 for biologically significant signal.
 
-### pValue
+#### pValue
 pValue is used in the first step of PIPETS and is the user defined p-value 
 cutoff for the Poisson Distribution Test. By default it is set to 0.005.
 
-### topEndPercentage
+#### topEndPercentage
 topEndPercentage is used to modulate the global read coverage minumum cutoff. By
 default it is set to 0.01. This parameter is used to reduce the influence of 
 very high read coverage positions in the creation of the global cutoff. The 
@@ -267,7 +274,7 @@ should be excluded in the cutoff creation process. It removes the top 1% of
 positions (if there are 500 positions that contain the top 75% of all reads
 then this parameter states to remove the top 5 of those top positions).
 
-# Session Info
+## Session Info
 
 ```{r sessionInfo}
 sessionInfo()

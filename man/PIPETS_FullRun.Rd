@@ -8,6 +8,7 @@ Poisson Identification of PEaks from Term-Seq data. This is the full run method 
 PIPETS_FullRun(
   inputBedFile,
   readLength,
+  OutputFileID,
   slidingWindowSize = 25,
   slidingWindowMovementDistance = 25,
   threshAdjust = 0.75,
@@ -21,6 +22,8 @@ PIPETS_FullRun(
 \item{inputBedFile}{Input BED file that is not strand split. For PIPETS, the first column must be the chromosome name, the second column must be the start coordinate, the third column must be the stop coordinate, and the 6th column must be the strand. Columns 4 and 5 must be present but their information will not be used.}
 
 \item{readLength}{The user must input the expected length of each “proper” read from the 3’-seq protocol. PIPETS gives a +/- 2 range for detecting reads to be used in the input BED files based on distributions of read coverage in parameter testing.}
+
+\item{OutputFileID}{User defined header for the output files of PIPETS. Will be the prefix for output bed and csv files.}
 
 \item{slidingWindowSize}{This parameter establishes the distance up and down stream of each position that a sliding window will be created around. The default value is 25, and this will result in a sliding window of total size 51 (25 upstream + position (1) + 25 downstream).}
 
@@ -48,12 +51,15 @@ PIPETS_FullRun
 ## After completion, the output files will be created in the R project directory
 
 ## For run with defualt strictness of analysis
-PIPETS_FullRun(inputBedFile = "PIPETS_TestData.bed", readLength = 58)
+PIPETS_FullRun(inputBedFile = "PIPETS_TestData.bed", readLength = 58, 
+OutputFileID = "Antibiotic1")
 
 ## For a more strict run (can be run for files with high total read depth)
-PIPETS_FullRun(inputBedFile = "PIPETS_TestData.bed", readLength = 58, threshAdjust = 0.6)
+PIPETS_FullRun(inputBedFile = "PIPETS_TestData.bed", readLength = 58, threshAdjust = 0.6, 
+OutputFileID = "Antibiotic1_Strict")
 
 ## For a less strict run (for data with low total read depth)
-PIPETS_FullRun(inputBedFile = "PIPETS_TestData.bed", readLength = 58, threshAdjust = 0.9)
+PIPETS_FullRun(inputBedFile = "PIPETS_TestData.bed", readLength = 58, threshAdjust = 0.9, 
+OutputFileID = "Antibiotic1_Lax")
 
 }
