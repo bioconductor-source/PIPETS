@@ -6,7 +6,7 @@
 Poisson Identification of PEaks from Term-Seq data. This is the full run method that begins with input Bed file and returns the strand split results}
 \usage{
 PIPETS_FullRun(
-  inputBedFile,
+  inputData,
   readLength,
   OutputFileID,
   slidingWindowSize = 25,
@@ -15,11 +15,12 @@ PIPETS_FullRun(
   pValue = 0.005,
   topEndPercentage = 0.01,
   adjacentPeakDistance = 2,
-  peakCondensingDistance = 20
+  peakCondensingDistance = 20,
+  inputDataFormat = "bedFile"
 )
 }
 \arguments{
-\item{inputBedFile}{Input BED file that is not strand split. For PIPETS, the first column must be the chromosome name, the second column must be the start coordinate, the third column must be the stop coordinate, and the 6th column must be the strand. Columns 4 and 5 must be present but their information will not be used.}
+\item{inputData}{Either input Bed file or GRanges object. Either must have at least chromosome, start, stop, and strand information}
 
 \item{readLength}{The user must input the expected length of each “proper” read from the 3’-seq protocol. PIPETS gives a +/- 2 range for detecting reads to be used in the input BED files based on distributions of read coverage in parameter testing.}
 
@@ -38,6 +39,8 @@ PIPETS_FullRun(
 \item{adjacentPeakDistance}{During the peak condensing step, this parameter is used to define “adjacent” for significant genomic positions. This is used to identify initial peak structures in the data. By default this value is set to 2 to ensure that single instances of loss of signal are not sufficient to prevent otherwise contiguous peak signatures from being combined.}
 
 \item{peakCondensingDistance}{Following the initial peak condensing step, this parameter is used to identify peak structures in the data that are close enough to be considered part of the same termination signal. In testing, we have not identified cases in which two distinct termination signals so proximal that the default parameters incorrectly combine the signals together.}
+
+\item{inputDataFormat}{PIPETS currently supports "bedFile" (default) and "GRanges" as input formats}
 }
 \value{
 PIPETS outputs strand specific results files as well as strand specific bed files to the directory that the R project is in.
@@ -51,15 +54,15 @@ PIPETS_FullRun
 ## After completion, the output files will be created in the R project directory
 
 ## For run with defualt strictness of analysis
-PIPETS_FullRun(inputBedFile = "PIPETS_TestData.bed", readLength = 58, 
+PIPETS_FullRun(inputData = "PIPETS_TestData.bed", readLength = 58, 
 OutputFileID = "Antibiotic1")
 
 ## For a more strict run (can be run for files with high total read depth)
-PIPETS_FullRun(inputBedFile = "PIPETS_TestData.bed", readLength = 58, threshAdjust = 0.6, 
+PIPETS_FullRun(inputData = "PIPETS_TestData.bed", readLength = 58, threshAdjust = 0.6, 
 OutputFileID = "Antibiotic1_Strict")
 
 ## For a less strict run (for data with low total read depth)
-PIPETS_FullRun(inputBedFile = "PIPETS_TestData.bed", readLength = 58, threshAdjust = 0.9, 
+PIPETS_FullRun(inputData = "PIPETS_TestData.bed", readLength = 58, threshAdjust = 0.9, 
 OutputFileID = "Antibiotic1_Lax")
 
 }

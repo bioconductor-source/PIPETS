@@ -53,17 +53,27 @@ BiocManager::install("PIPETS")
 
 
 ### Basic PIPETS Run
-Here we show the basic walkthrough of running PIPETS on an input Bed file. The
-only three parameters that need to be specified to run PIPETS 
-are `inputBedFile`, the expected `readLength`, and the prefix for the output 
-file name `OutputFileID`. 
+PIPETS accepts two types of data as inputs: Bed Files or GRanges objects. Both
+sets of data undergo the same analysis method. Running the method differs 
+slightly if the user is using a GRanges input.Here we show the basic walkthrough 
+of running PIPETS on an input Bed file. The four parameters that need to 
+be specified to run PIPETS are `inputData`, the expected `readLength`,  
+the prefix for the output file name `OutputFileID`, and the type of input data
+`inputDataFormat`.
 
 ```{r echo=TRUE, message=FALSE, eval=FALSE}
 
 library(PIPETS)
 
-PIPETS_FullRun(inputBedFile = "~/path/to/bed/file", readLength = 58, 
-               OutputFileID = "ExampleResultsRun")
+#Bed File Input
+PIPETS_FullRun(inputData = "~/path/to/bed/file", readLength = 58, 
+               OutputFileID = "ExampleResultsRun", inputDataFormat = "bedFile")
+
+#GRanges object input
+#When run on GRanges objects, PIPETS also outputs the strand split GRanges objects to a list for the user
+#The first item in the list are the + strand reads, and the second are the - strand reads
+ResultsList <- PIPETS_FullRun(inputData = GRanges_Object, readLength = 58, 
+               OutputFileID = "ExampleResultsRun", inputDataFormat = "GRanges")
 
 ```
 
@@ -273,6 +283,13 @@ parameter describes what total percentage of the highest read coverage positions
 should be excluded in the cutoff creation process. It removes the top 1% of 
 positions (if there are 500 positions that contain the top 75% of all reads
 then this parameter states to remove the top 5 of those top positions).
+
+#### inputDataFormat
+The default value is `bedFile` which assumes that the input will be a string
+file path to the input bed file for the run. Alternatively, if the user has
+created a GRanges object, the user can specify `GRanges` and enter the R 
+GRanges object into the run method.
+
 
 ## Session Info
 

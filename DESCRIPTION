@@ -1,6 +1,6 @@
 Package: PIPETS
 Title: Poisson Identification of PEaks from Term-Seq data
-Version: 0.99.1
+Version: 0.99.2
 Authors@R: 
     person("Quinlan", "Furumo", email="furumo@bc.edu", role = c("aut", "cre"), comment = c(ORCID = "0000-0003-4486-302X"))
 Description: PIPETS provides statistically robust analysis for 3'-seq/term-seq data. It utilizes a sliding window approach to apply a Poisson Distribution test to identify genomic positions with termination read coverage that is significantly higher than the surrounding signal. PIPETS then condenses proximal signal and produces strand specific results that contain all significant termination peaks. 
@@ -9,7 +9,7 @@ Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.2.3
 Depends: R (>= 4.0.0)
-Imports: dplyr, utils, stats
+Imports: dplyr, utils, stats, GenomicRanges
 Suggests: 
     BiocStyle,
     knitr,
