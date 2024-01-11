@@ -61,19 +61,41 @@ be specified to run PIPETS are `inputData`, the expected `readLength`,
 the prefix for the output file name `OutputFileID`, and the type of input data
 `inputDataFormat`.
 
+#### Bed File Input
 ```{r echo=TRUE, message=FALSE, eval=FALSE}
 
 library(PIPETS)
 
+dir <- system.file("extdata", package="PIPETS")
+samples <- read.table(file.path(dir,"PIPETS_TestData.bed"), header=FALSE)
+
 #Bed File Input
-PIPETS_FullRun(inputData = "~/path/to/bed/file", readLength = 58, 
+PIPETS_FullRun(inputData = file.path(dir,"PIPETS_TestData.bed"),readLength = 58, 
                OutputFileID = "ExampleResultsRun", inputDataFormat = "bedFile")
 
+
+```
+
+
+#### GRanges Object Input
+```{r echo=TRUE, message=FALSE, eval=FALSE}
+library(PIPETS)
+library(GenomicRanges)
 #GRanges object input
 #When run on GRanges objects, PIPETS also outputs the strand split GRanges objects to a list for the user
 #The first item in the list are the + strand reads, and the second are the - strand reads
+
+dir <- system.file("extdata", package="PIPETS")
+samples <- read.table(file.path(dir,"PIPETS_TestData.bed"), header=FALSE)
+
+GRanges_Object <- GRanges(seqnames = samples$V1,
+                    ranges = IRanges(start = samples$V2,end = samples$V3),
+                    strand = samples$V6)
+
 ResultsList <- PIPETS_FullRun(inputData = GRanges_Object, readLength = 58, 
                OutputFileID = "ExampleResultsRun", inputDataFormat = "GRanges")
+
+head(ResultsList)
 
 ```
 

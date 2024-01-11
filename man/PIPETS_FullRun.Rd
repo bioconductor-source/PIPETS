@@ -12,7 +12,7 @@ PIPETS_FullRun(
   slidingWindowSize = 25,
   slidingWindowMovementDistance = 25,
   threshAdjust = 0.75,
-  pValue = 0.005,
+  pValue = 5e-04,
   topEndPercentage = 0.01,
   adjacentPeakDistance = 2,
   peakCondensingDistance = 20,

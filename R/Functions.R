@@ -55,20 +55,19 @@ inputCheck <- function(inputData,readLength,slidingWindowSize,
     }
     
     if(as.character(inputDataFormat) %in% "GRanges"){
-        if(!class(inputData)[1] %in% "GRanges"){
+        if(!is(inputData,"GRanges")){
             warning("Input Data is not of type 'GRanges'")
             kicker <- 1
             return(kicker)
         }
-        if(length(ranges(inputData)@start) < 100){
+        if(length(BiocGenerics::start(inputData)) < 100){
             warning("Granges object has too few total genomic ranges")
             kicker <- 1
             return(kicker)
         }
-        totalGrangesLength <- length(inputData)
-        if(inputData@strand[!inputData@strand 
-                            %in% c("+","-")]/totalGrangesLength >= .50){
-            warning("More than 50% of GRanges positions do not 
+        if(length(inputData[!BiocGenerics::strand(inputData) %in% c("+","-")])/
+                    length(inputData) >= .50){
+            warning("50% or more of GRanges positions do not 
                     have strand information, PIPETS cannot run")
             kicker <- 1
             return(kicker)
@@ -128,15 +127,15 @@ thresCalc <- function(rf, threshAdjust,topEndPercentage){
 }
 
 
-#' consecutiveCheck
-#' Identifies significant positions that are consecutive
+#' topConsecutiveCheck
+#' Identifies significant positions that are consecutive for top strand
 #' @param OF Dataframe with significant positions (after initial Poisson test)
 #' @param OMF Dataframe that will be the output, specified in function this is nested in
 #' @param aPD Adjacent Peak distance speicified by user in full run
 #' @return Returns list of merged termination peaks
 #' @noRd
 #'
-consecutiveCheck <- function(OF, OMF, aPD, TPH){
+topConsecutiveCheck <- function(OF, OMF, aPD, TPH){
     x <- 1
     peakFrameCoord <- 1
     for(x in seq_along(OF[,1])){
@@ -187,6 +186,65 @@ consecutiveCheck <- function(OF, OMF, aPD, TPH){
     return(OMF)
 }
 
+
+#' compConsecutiveCheck
+#' Identifies significant positions that are consecutive for comp strand
+#' @param OF Dataframe with significant positions (after initial Poisson test)
+#' @param OMF Dataframe that will be the output, specified in function this is nested in
+#' @param aPD Adjacent Peak distance speicified by user in full run
+#' @return Returns list of merged termination peaks
+#' @noRd
+#'
+compConsecutiveCheck <- function(OF, OMF, aPD, TPH){
+    x <- 1
+    peakFrameCoord <- 1
+    for(x in seq_along(OF[,1])){
+        tempSubset <- ""
+        if(x < nrow(OF) & (OF$start[x+1] - OF$start[x]) <= aPD){
+            TPH <- rbind(TPH,OF[x,, drop=FALSE])
+        }
+        else if(x == nrow(OF)){
+            if((OF$start[x] - OF$start[(x-1)]) <= aPD) {
+                TPH <- rbind(TPH,OF[x,, drop=FALSE])
+                OMF$chrom[peakFrameCoord] <- OF$chrom[1]
+                OMF$strand[peakFrameCoord] <- OF$strand[1]
+                tS <- subset(TPH, coverage == max(TPH$coverage))
+                tS <- subset(tS, subset = !duplicated(tS[c("coverage")]),
+                             select = c("chrom", "start", "stop","coverage","strand"))
+                OMF$HighestPeak[peakFrameCoord] <- tS$start[1]
+                OMF$HighestPeakReadCoverage[peakFrameCoord] <-tS$coverage[1]
+                OMF$LowestPeakCoord[peakFrameCoord] <- min(TPH$start)
+                OMF$HighestPeakCoord[peakFrameCoord] <- max(TPH$start)
+                peakFrameCoord <- peakFrameCoord + 1
+                OMF[peakFrameCoord,] <- NA
+                TPH <- as.data.frame(matrix(nrow = 0, ncol = ncol(OF)))
+                colnames(TPH) <- colnames(OF)
+            }
+            else if(!(OF$start[x] - OF$start[x-1]) <= aPD){
+                OMF[peakFrameCoord,] <- c(OF$chrom[1],
+                                          OF$strand[x], OF$start[x],OF$coverage[x],
+                                          OF$start[x],OF$start[x])
+            }
+        }
+        else {
+            TPH <- rbind(TPH,OF[x,, drop=FALSE])
+            OMF$chrom[peakFrameCoord] <- OF$chrom[1]
+            OMF$strand[peakFrameCoord] <- OF$strand[1]
+            tS <- subset(TPH, coverage == max(TPH$coverage))
+            tS <- subset(tS,subset = !duplicated(tempSubset[c("coverage")]),
+                         select = c("chrom", "start", "stop","coverage","strand"))
+            OMF$HighestPeak[peakFrameCoord] <- tS$start[1]
+            OMF$HighestPeakReadCoverage[peakFrameCoord] <-tS$coverage[1]
+            OMF$LowestPeakCoord[peakFrameCoord] <- min(TPH$start)
+            OMF$HighestPeakCoord[peakFrameCoord] <- max(TPH$start)
+            peakFrameCoord <- peakFrameCoord + 1
+            OMF[peakFrameCoord,] <- NA
+            TPH <- as.data.frame(matrix(nrow = 0, ncol = ncol(OF)))
+            colnames(TPH) <- colnames(OF)
+        }
+    }
+    return(OMF)
+}
 
 #' consecutivePeakCheck
 #' Combines Proximal Peaks
@@ -326,6 +384,8 @@ Bed_Split <- function(inputData,readLength, OutputFileID){
 #' @importFrom stats aggregate ppois complete.cases
 #' @importFrom utils write.csv write.table read.table read.delim
 #' @importFrom GenomicRanges ranges end
+#' @importFrom BiocGenerics strand
+#' @importFrom methods is
 #' @param inputData Input granges object. PIPETS requires chromosome, start, stop, and strand information from the granges object
 #' @param readLength The user must input the expected length of each “proper” read from the 3’-seq protocol. PIPETS gives a +/- 2 range for detecting reads to be used in the input BED files based on distributions of read coverage in parameter testing.
 #' @param OutputFileID User input string that will be used to identify output bed files
@@ -338,11 +398,13 @@ Bed_Split <- function(inputData,readLength, OutputFileID){
 #' @noRd
 #'
 GRanges_Split <- function(inputData,readLength, OutputFileID){
-    allMinusRanges <- inputData[inputData@strand %in% "-"]
-    allPlusRanges <- inputData[inputData@strand %in% "+"]
-    allMinusRanges <- allMinusRanges[allMinusRanges@ranges@width %in% 
+    message("+-----------------------------------+")
+    message("Splitting Input GRanges Object By Strand")
+    allMinusRanges <- inputData[strand(inputData) %in% "-"]
+    allPlusRanges <- inputData[strand(inputData) %in% "+"]
+    allMinusRanges <- allMinusRanges[BiocGenerics::width(allMinusRanges) %in% 
                                          c((readLength-2):(readLength+2))]
-    allPlusRanges <- allPlusRanges[allPlusRanges@ranges@width %in% 
+    allPlusRanges <- allPlusRanges[BiocGenerics::width(allPlusRanges) %in% 
                                        c((readLength-2):(readLength+2))]
     allMinusCoverage <- as.data.frame(table(end(allPlusRanges)))
     allMinusReads <- as.data.frame(allPlusRanges)
@@ -473,7 +535,7 @@ TopStrand_InitialCondense <- function(TopInititalPoisson,
     colnames(OMF) <- c("chrom","strand","HighestPeak",
     "HighestPeakReadCoverage","LowestPeakCoord",
     "HighestPeakCoord")
-    OMF <- consecutiveCheck(OF = outputFrame, OMF = OMF,
+    OMF <- topConsecutiveCheck(OF = outputFrame, OMF = OMF,
         aPD = adjacentPeakDistance, TPH = TPH)
     OMF_Top <- OMF[complete.cases(OMF),,drop=FALSE]
     rownames(OMF_Top) <- seq_along(OMF_Top[,1])
@@ -598,7 +660,7 @@ CompStrand_InitialCondense <- function(CompInitialPoisson,
     colnames(OMF) <- c("chrom","strand","HighestPeak",
         "HighestPeakReadCoverage",
         "LowestPeakCoord","HighestPeakCoord")
-    OMF <- consecutiveCheck(OF = OF, OMF = OMF,
+    OMF <- compConsecutiveCheck(OF = OF, OMF = OMF,
         aPD = adjacentPeakDistance, TPH = TPH)
     OMF_Comp <- OMF[complete.cases(OMF),,drop=FALSE]
     rownames(OMF_Comp) <- seq_along(OMF_Comp[,1])
@@ -681,7 +743,7 @@ CompStrand_SecondaryCondense <- function(CompInitialCondense,
 PIPETS_FullRun <- function(inputData,readLength,OutputFileID,
                            slidingWindowSize = 25,
     slidingWindowMovementDistance = 25,threshAdjust = 0.75,
-    pValue = 0.005,topEndPercentage= 0.01,
+    pValue = 0.0005,topEndPercentage= 0.01,
     adjacentPeakDistance = 2, peakCondensingDistance = 20,
     inputDataFormat = "bedFile"){
     kicker <- inputCheck(inputData,readLength,slidingWindowSize,
@@ -700,7 +762,7 @@ PIPETS_FullRun <- function(inputData,readLength,OutputFileID,
     message("+-----------------------------------+")
     message("Performing Top Strand Analysis")
     TopInititalPoisson <- TopStrand_InitialPoisson(
-        MinusStrandReads <- AllReads[[3]],slidingWindowSize = slidingWindowSize,
+        MinusStrandReads = AllReads[[3]],slidingWindowSize = slidingWindowSize,
         slidingWindowMovementDistance = slidingWindowMovementDistance,
         threshAdjust = threshAdjust, pValue = pValue,
         topEndPercentage= topEndPercentage)
