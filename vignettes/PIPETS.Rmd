@@ -78,7 +78,6 @@ PIPETS_FullRun(inputData = "~/path/to/file"
 #### GRanges Object Input
 ```{r echo=TRUE, message=FALSE, eval=FALSE}
 library(PIPETS)
-library(GenomicRanges)
 #GRanges object input
 #When run on GRanges objects, PIPETS also outputs the strand split GRanges objects to a list for the user
 #The first item in the list are the + strand reads, and the second are the - strand reads
