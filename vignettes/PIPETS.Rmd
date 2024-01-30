@@ -58,17 +58,19 @@ sets of data undergo the same analysis method. Running the method differs
 slightly if the user is using a GRanges input.Here we show the basic walkthrough 
 of running PIPETS on an input Bed file. The four parameters that need to 
 be specified to run PIPETS are `inputData`, the expected `readLength`,  
-the prefix for the output file name `OutputFileID`, and the type of input data
-`inputDataFormat`.
+the prefix for the output file name `OutputFileID`, the file path to the output
+director `OutputFileDir` ,and the type of input data `inputDataFormat`.
 
 #### Bed File Input
-```{r echo=TRUE, message=FALSE, eval=FALSE}
+```{r echo=TRUE, message=FALSE}
 
 library(PIPETS)
 
+
 #Bed File Input
-PIPETS_FullRun(inputData = "~/path/to/file"
+PIPETS_FullRun(inputData = "PIPETS_TestData.bed"
                ,readLength = 58, OutputFileID = "ExampleResultsRun", 
+               OutputFileDir = as.character(tempdir()),
                inputDataFormat = "bedFile")
 
 
@@ -76,15 +78,25 @@ PIPETS_FullRun(inputData = "~/path/to/file"
 
 
 #### GRanges Object Input
-```{r echo=TRUE, message=FALSE, eval=FALSE}
+```{r echo=TRUE, message=FALSE}
 library(PIPETS)
+library(BiocGenerics)
+library(GenomicRanges)
 #GRanges object input
 #When run on GRanges objects, PIPETS also outputs the strand split GRanges objects to a list for the user
 #The first item in the list are the + strand reads, and the second are the - strand reads
+GRanges_Object <- read.delim(file = "PIPETS_TestData.bed",
+        header = FALSE, stringsAsFactors = FALSE)
+
+GRanges_Object <- GRanges(seqnames = GRanges_Object$V1,
+        ranges = IRanges(start = GRanges_Object$V2,end = GRanges_Object$V3
+        ),strand = GRanges_Object$V6)
 
 ResultsList <- PIPETS_FullRun(inputData = GRanges_Object, readLength = 58, 
+               OutputFileDir = as.character(tempdir()),
                OutputFileID = "ExampleResultsRun", inputDataFormat = "GRanges")
 
+head(ResultsList)
 
 ```
 
