@@ -1,6 +1,6 @@
 Package: PIPETS
 Title: Poisson Identification of PEaks from Term-Seq data
-Version: 0.99.11
+Version: 0.99.12
 Authors@R: 
     person("Quinlan", "Furumo", email="furumo@bc.edu", role = c("aut", "cre"), comment = c(ORCID = "0000-0003-4486-302X"))
 Description: PIPETS provides statistically robust analysis for 3'-seq/term-seq data. It utilizes a sliding window approach to apply a Poisson Distribution test to identify genomic positions with termination read coverage that is significantly higher than the surrounding signal. PIPETS then condenses proximal signal and produces strand specific results that contain all significant termination peaks. 
@@ -16,6 +16,7 @@ Suggests:
     rmarkdown,
     testthat (>= 3.0.0)
 VignetteBuilder: knitr
+BugReports: https://github.com/qfurumo/PIPETS/issues
 URL: https://github.com/qfurumo/PIPETS
 biocViews: Sequencing, Transcription, GeneRegulation, PeakDetection, Genetics, Transcriptomics, Coverage
 Config/testthat/edition: 3

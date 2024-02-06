@@ -37,7 +37,7 @@ inputCheck <- function(inputData,readLength,OutputFileID,
     }
     if(!file.exists(as.character(OutputFileDir))){
         kicker <- 1
-        warning("Input File Directory Does Not Exist, ensure the format is '~/path/to/file/'")
+        warning("Input File Directory Does Not Exist, ensure the format is '/path/to/file/'")
         return(kicker)
     }
     if(as.character(inputDataFormat) %in% "bedFile"){
@@ -420,6 +420,7 @@ GRanges_Split <- function(inputData,readLength, OutputFileID){
                                         (tempHold$start,allMinusReads$start)]
     allMinusReads <- tempHold[,c("chrom","start","stop","coverage","strand")
                               , drop=FALSE]
+    allMinusReads$start <- allMinusReads$start - 1
     allPlusCoverage <- as.data.frame(table(end(allMinusRanges)))
     allPlusReads <- as.data.frame(allMinusRanges)
     allPlusReads <- distinct(allPlusReads, end, .keep_all = TRUE)
@@ -434,6 +435,7 @@ GRanges_Split <- function(inputData,readLength, OutputFileID){
                                            (tempHold$start,allPlusReads$start)]
     allPlusReads <- tempHold[,c("chrom","start","stop","coverage","strand")
                              , drop=FALSE]
+    allPlusReads$start <- allPlusReads$start - 1
     write.table(allPlusReads,file = paste(as.character(OutputFileID),
                                           "PlusStrandCounts.bed", sep = "_")
                 ,quote = FALSE, row.names = FALSE, col.names = FALSE)

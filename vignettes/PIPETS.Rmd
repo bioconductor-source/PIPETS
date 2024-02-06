@@ -70,7 +70,7 @@ library(PIPETS)
 #Bed File Input
 PIPETS_FullRun(inputData = "PIPETS_TestData.bed"
                ,readLength = 58, OutputFileID = "ExampleResultsRun", 
-               OutputFileDir = as.character(tempdir()),
+               OutputFileDir = tempdir(),
                inputDataFormat = "bedFile")
 
 
@@ -93,7 +93,7 @@ GRanges_Object <- GRanges(seqnames = GRanges_Object$V1,
         ),strand = GRanges_Object$V6)
 
 ResultsList <- PIPETS_FullRun(inputData = GRanges_Object, readLength = 58, 
-               OutputFileDir = as.character(tempdir()),
+               OutputFileDir = tempdir(),
                OutputFileID = "ExampleResultsRun", inputDataFormat = "GRanges")
 
 head(ResultsList)
