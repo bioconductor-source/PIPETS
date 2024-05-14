@@ -13,7 +13,7 @@ PIPETS_FullRun(
   slidingWindowSize = 25,
   slidingWindowMovementDistance = 25,
   threshAdjust = 0.75,
-  pValue = 5e-04,
+  user_pValue = 5e-04,
   topEndPercentage = 0.01,
   adjacentPeakDistance = 2,
   peakCondensingDistance = 20,
@@ -35,7 +35,7 @@ PIPETS_FullRun(
 
 \item{threshAdjust}{This parameter is used to establish a global cutoff threshold informed by the data. PIPETS sorts the genomic positions of each strand from highest to lowest, and starts with the highest read coverage position and subtracts that value from the total read coverage for that strand. By default, this continues until 75\% of the total read coverage has been accounted for. Increasing the percentage (e.x. 0.9) will lower the strictness of the cutoff, thus increasing the total number of significant results.}
 
-\item{pValue}{Choose the minimum pValue that the Poisson distribution test must pass in order to be considered significant}
+\item{user_pValue}{Choose the minimum pValue that the Poisson distribution test must pass in order to be considered significant}
 
 \item{topEndPercentage}{This parameter is used along with threshAdjust to trim off the influence exerted by high read coverage outliers. By default, it removes the top 0.01 percent of the highest read coverage positions from the calculation of the global threshold (e.x. if there are 200 positions that make up 75\% of the total reads, then this parameter will take the top 2 read coverage positions and remove them from the calculation of the global threshold). This parameter can be tuned to account for datasets with outliers that would otherwise severely skew the global threshold.}
 

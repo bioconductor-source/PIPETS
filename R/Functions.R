@@ -15,7 +15,7 @@ utils::globalVariables(c("coverage", "HighestPeakReadCoverage",
 #' @param slidingWindowSize See PIPETS_Run for full explanation
 #' @param slidingWindowMovementDistance See PIPETS_Run for full explanation
 #' @param threshAdjust See PIPETS_Run for full explanation
-#' @param pValue See PIPETS_Run for full explanation
+#' @param user_pValue See PIPETS_Run for full explanation
 #' @param topEndPercentage See PIPETS_Run for full explanation
 #' @param adjacentPeakDistance See PIPETS_Run for full explanation
 #' @param peakCondensingDistance See PIPETS_Run for full explanation
@@ -26,7 +26,7 @@ utils::globalVariables(c("coverage", "HighestPeakReadCoverage",
 inputCheck <- function(inputData,readLength,OutputFileID,
                        OutputFileDir,slidingWindowSize, 
                        slidingWindowMovementDistance,threshAdjust,
-                       pValue,topEndPercentage,
+                       user_pValue,topEndPercentage,
                        adjacentPeakDistance, peakCondensingDistance,
                        inputDataFormat = "bedFile"){
     kicker <- 0
@@ -50,7 +50,7 @@ inputCheck <- function(inputData,readLength,OutputFileID,
             return(kicker)
         }
         if(nrow(test) < 100){
-            warning("Input file is too short")
+            warning("Input file is too short (currently less than 100 reads")
             kicker <- 1
             return(kicker)
         }
@@ -76,7 +76,7 @@ inputCheck <- function(inputData,readLength,OutputFileID,
     if(!is.numeric(slidingWindowSize)|
        !is.numeric(slidingWindowMovementDistance)|
        !is.numeric(topEndPercentage)|!is.numeric(threshAdjust)|
-       !is.numeric(pValue)|!is.numeric(adjacentPeakDistance)|
+       !is.numeric(user_pValue)|!is.numeric(adjacentPeakDistance)|
        !is.numeric(peakCondensingDistance)|!is.numeric(readLength)){
         warning("One or more numerical parameters is not a number and PIPETS 
                 cannot run")
@@ -85,7 +85,7 @@ inputCheck <- function(inputData,readLength,OutputFileID,
     }
     if(slidingWindowSize == 0 | slidingWindowMovementDistance == 0 |
        topEndPercentage == 0 | threshAdjust ==0 | readLength == 0 |
-       pValue == 0|adjacentPeakDistance ==0 | peakCondensingDistance == 0){
+       user_pValue == 0|adjacentPeakDistance ==0 | peakCondensingDistance == 0){
         warning("One or more parameters is 0 and PIPETS cannot run")
         kicker <- 1
         return(kicker)
@@ -450,54 +450,55 @@ GRanges_Split <- function(inputData,readLength, OutputFileID){
 
 
 
-
 #' TopStrand_InitialPoisson
 #' Poisson Significant Peak Identification Test for the Top Strand Data
 #' @importFrom dplyr arrange distinct
-#' @importFrom stats aggregate ppois complete.cases
+#' @importFrom stats aggregate ppois complete.cases p.adjust
 #' @importFrom utils write.csv write.table read.table read.delim
 #' @param MinusStrandReads Minus Strand Read DataFrame from the Bed_Split method. The minus strand reads inform the Top Strand termination signal
 #' @param slidingWindowSize This parameter establishes the distance up and down stream of each position that a sliding window will be created around. The default value is 25, and this will result in a sliding window of total size 51 (25 upstream + position (1) + 25 downstream).
 #' @param slidingWindowMovementDistance This parameter sets the distance that the sliding window will be moved. By default, it is set to move by half of the sliding window size in order to ensure that almost every position in the data is tested twice.
 #' @param threshAdjust This parameter is used to establish a global cutoff threshold informed by the data. PIPETS sorts the genomic positions of each strand from highest to lowest, and starts with the highest read coverage position and subtracts that value from the total read coverage for that strand. By default, this continues until 75% of the total read coverage has been accounted for. Increasing the percentage (e.x. 0.9) will lower the strictness of the cutoff, thus increasing the total number of significant results.
-#' @param pValue Choose the minimum pValue that the Poisson distribution test must pass in order to be considered significant
+#' @param user_pValue Choose the minimum pValue that the Poisson distribution test must pass in order to be considered significant
 #' @param topEndPercentage This parameter is used along with threshAdjust to trim off the influence exerted by high read coverage outliers. By default, it removes the top 0.01 percent of the highest read coverage positions from the calculation of the global threshold (e.x. if there are 200 positions that make up 75% of the total reads, then this parameter will take the top 2 read coverage positions and remove them from the calculation of the global threshold). This parameter can be tuned to account for datasets with outliers that would otherwise severely skew the global threshold.
 #' @return Returns a dataframe with all genomic positions that were identified as having significant read coverage.
 #' @noRd
 #'
 TopStrand_InitialPoisson <- function(MinusStrandReads,slidingWindowSize = 25,
-    slidingWindowMovementDistance = 25,threshAdjust = 0.75,pValue = 0.005,
-    topEndPercentage= 0.01){
+                                     slidingWindowMovementDistance = 25,threshAdjust = 0.75,user_pValue = 0.0005,
+                                     topEndPercentage= 0.01){
     MSR <- MinusStrandReads
     SWMD <- slidingWindowMovementDistance
     SWS <- slidingWindowSize
-    outputFrame <- as.data.frame(matrix(nrow = 0, ncol = 5))
-    colnames(outputFrame) <- colnames(MSR)
-    SWF <- as.data.frame(matrix(nrow =
-        MSR[nrow(MSR),"stop"], ncol = 2))
+    outputFrame <- as.data.frame(matrix(nrow = 0, ncol = 7))
+    colnames(outputFrame)[1:5] <- colnames(MSR)
+    colnames(outputFrame)[6] <- "pValue"
+    colnames(outputFrame)[7] <- "adjpValue"
+    SWF <- as.data.frame(matrix(nrow = MSR[nrow(MSR),"stop"], ncol = 2))
     colnames(SWF) <- c("position","coverage")
     SWF$coverage <- 0
     SWF$position <- seq_along(SWF[,1])
     posThreshold <- thresCalc(rf = MSR, threshAdjust = threshAdjust,
-        topEndPercentage = topEndPercentage)
+                              topEndPercentage = topEndPercentage)
     toUser <- paste("Top Strand Cutoff", posThreshold, sep = " ")
     message(as.character(toUser))
     nm <- "coverage"
-    SWF[nm] <- lapply(nm, function(x) MSR[[x]][match(SWF$position, MSR$stop)])
+    SWF$coverage <- MSR$coverage[match(SWF$position, MSR$stop)]
     SWF$coverage[is.na(SWF$coverage)] <- 0
     z <- 1+ SWS
     breakCond <- 0
     numericBreakCond <- 0
+    pvalPos <- 1
     while(breakCond == 0){
         sumOfWindowCoverage <- sum(SWF$coverage[(z-SWS):(z+SWS)])
         AOW <- sumOfWindowCoverage/((2*SWS)+1)
         for(y in (z-SWS):(z+SWS)){
-            if(SWF$coverage[y] >= 10){
+            if(SWF$coverage[y] >= posThreshold){
                 probabilityAtY <- (1- ppois(q = SWF$coverage[y], lambda = AOW))
-                if(SWF$coverage[y] >= posThreshold & probabilityAtY <= pValue){
-                    outputFrame <- rbind(MSR[MSR$stop == SWF$position[y],,
-                                             drop=FALSE],
-                    outputFrame)
+                if(probabilityAtY <= user_pValue){
+                    outputFrame[pvalPos,1:5] <- MSR[MSR$stop == SWF$position[y],]
+                    outputFrame$pValue[pvalPos] <- probabilityAtY
+                    pvalPos <- pvalPos + 1
                 }
             }
         }
@@ -512,6 +513,9 @@ TopStrand_InitialPoisson <- function(MinusStrandReads,slidingWindowSize = 25,
             z <- (z + SWMD)
         }
     }
+    outputFrame$adjpValue <- p.adjust(outputFrame$pValue, method = "BH", n = length(outputFrame$pValue))
+    outputFrame <- outputFrame[outputFrame$adjpValue <= user_pValue,]
+    outputFrame<- outputFrame[with(outputFrame, ave(adjpValue, stop, FUN=min)==adjpValue),]
     outputFrame <- outputFrame[!duplicated(outputFrame),, drop=FALSE]
     outputFrame <- outputFrame[order(outputFrame$stop),,drop=FALSE]
     rownames(outputFrame) <- seq_along(outputFrame[,1])
@@ -575,54 +579,59 @@ TopStrand_SecondaryCondense <- function(TopInititalCondense,
     SWR_Top <- SWR_Top[complete.cases(SWR_Top),, drop=FALSE]
     SWR_Top <- SWR_Top[,-2,drop=FALSE]
     write.csv(SWR_Top,
-        file = paste(as.character(OFN),"topStrandResults.csv", sep = "_"),
+        file = paste(as.character(OFN),"TopStrandResults.csv", sep = "_"),
         row.names = FALSE)
 }
 
 #' CompStrand_InitialPoisson
 #' Poisson Significant Peak Identification Test for the Complement Strand Data
 #' @importFrom dplyr arrange distinct
-#' @importFrom stats aggregate ppois complete.cases
+#' @importFrom stats aggregate ppois complete.cases p.adjust
 #' @importFrom utils write.csv write.table read.table read.delim
 #' @param PlusStrandReads Plus Strand Read DataFrame from the Bed_Split method. The Plus strand reads inform the Complement Strand termination signal
 #' @param slidingWindowSize This parameter establishes the distance up and down stream of each position that a sliding window will be created around. The default value is 25, and this will result in a sliding window of total size 51 (25 upstream + position (1) + 25 downstream).
 #' @param slidingWindowMovementDistance This parameter sets the distance that the sliding window will be moved. By default, it is set to move by half of the sliding window size in order to ensure that almost every position in the data is tested twice.
 #' @param threshAdjust This parameter is used to establish a global cutoff threshold informed by the data. PIPETS sorts the genomic positions of each strand from highest to lowest, and starts with the highest read coverage position and subtracts that value from the total read coverage for that strand. By default, this continues until 75% of the total read coverage has been accounted for. Increasing the percentage (e.x. 0.9) will lower the strictness of the cutoff, thus increasing the total number of significant results.
-#' @param pValue Choose the minimum pValue that the Poisson distribution test must pass in order to be considered significant
+#' @param user_pValue Choose the minimum pValue that the Poisson distribution test must pass in order to be considered significant
 #' @param topEndPercentage This parameter is used along with threshAdjust to trim off the influence exerted by high read coverage outliers. By default, it removes the top 0.01 percent of the highest read coverage positions from the calculation of the global threshold (e.x. if there are 200 positions that make up 75% of the total reads, then this parameter will take the top 2 read coverage positions and remove them from the calculation of the global threshold). This parameter can be tuned to account for datasets with outliers that would otherwise severely skew the global threshold.
 #' @return Returns a dataframe with all genomic positions that were identified as having significant read coverage.
 #' @noRd
 #'
 CompStrand_InitialPoisson <- function(PlusStrandReads,slidingWindowSize = 25,
-    slidingWindowMovementDistance = 25,threshAdjust = 0.75,pValue = 0.005,
-    topEndPercentage= 0.01){
+                                      slidingWindowMovementDistance = 25,threshAdjust = 0.75,user_pValue = 0.0005,
+                                      topEndPercentage= 0.01){
+    PSR <- PlusStrandReads
     SWMD <- slidingWindowMovementDistance
     SWS <- slidingWindowSize
-    PSR <- PlusStrandReads
-    OF <- as.data.frame(matrix(nrow = 0, ncol = 5))
-    colnames(OF) <- colnames(PSR)
+    outputFrame <- as.data.frame(matrix(nrow = 0, ncol = 7))
+    colnames(outputFrame)[1:5] <- colnames(PSR)
+    colnames(outputFrame)[6] <- "pValue"
+    colnames(outputFrame)[7] <- "adjpValue"
     SWF <- as.data.frame(matrix(nrow = PSR[nrow(PSR),"start"], ncol = 2))
     colnames(SWF) <- c("position","coverage")
     SWF$coverage <- 0
     SWF$position <- seq_along(SWF[,1])
-    compThreshold <- thresCalc(rf = PSR,threshAdjust = threshAdjust,
-        topEndPercentage = topEndPercentage)
+    compThreshold <- thresCalc(rf = PSR, threshAdjust = threshAdjust,
+                               topEndPercentage = topEndPercentage)
     toUser <- paste("Complement Strand Cutoff", compThreshold, sep = " ")
     message(as.character(toUser))
     nm <- "coverage"
-    SWF[nm] <- lapply(nm, function(x) PSR[[x]][match(SWF$position, PSR$start)])
+    SWF$coverage <- PSR$coverage[match(SWF$position, PSR$start)]
     SWF$coverage[is.na(SWF$coverage)] <- 0
-    z <- 1+ slidingWindowSize
+    z <- 1+ SWS
     breakCond <- 0
     numericBreakCond <- 0
+    pvalPos <- 1
     while(breakCond == 0){
         sumOfWindowCoverage <- sum(SWF$coverage[(z-SWS):(z+SWS)])
         AOW <- sumOfWindowCoverage/((2*SWS)+1)
         for(y in (z-SWS):(z+SWS)){
-            if(SWF$coverage[y] >= 10){
+            if(SWF$coverage[y] >= compThreshold){
                 probabilityAtY <- (1- ppois(q = SWF$coverage[y], lambda = AOW))
-                if(SWF$coverage[y] >= compThreshold & probabilityAtY <= pValue){
-                    OF <- rbind(PSR[PSR$start == SWF$position[y],], OF)
+                if(probabilityAtY <= user_pValue){
+                    outputFrame[pvalPos,1:5] <- PSR[PSR$start == SWF$position[y],]
+                    outputFrame$pValue[pvalPos] <- probabilityAtY
+                    pvalPos <- pvalPos + 1
                 }
             }
         }
@@ -637,11 +646,16 @@ CompStrand_InitialPoisson <- function(PlusStrandReads,slidingWindowSize = 25,
             z <- (z + SWMD)
         }
     }
-    OF <- OF[!duplicated(OF),,drop=FALSE]
-    OF <- OF[order(OF$stop),,drop=FALSE]
-    rownames(OF) <- seq_along(OF[,1])
-    return(OF)
+    outputFrame$adjpValue <- p.adjust(outputFrame$pValue, method = "BH", n = length(outputFrame$pValue))
+    outputFrame <- outputFrame[outputFrame$adjpValue <= user_pValue,]
+    outputFrame <- outputFrame[with(outputFrame, ave(adjpValue, start, FUN=min)==adjpValue),]
+    outputFrame <- outputFrame[!duplicated(outputFrame),, drop=FALSE]
+    outputFrame <- outputFrame[order(outputFrame$start),,drop=FALSE]
+    rownames(outputFrame) <- seq_along(outputFrame[,1])
+    return(outputFrame)
 }
+
+
 
 #' CompStrand_InitialCondense
 #' Takes the significant top strand positions from CompStrand_InitialPoisson and condenses all proximal positions into termination "peaks"
@@ -708,7 +722,7 @@ CompStrand_SecondaryCondense <- function(CompInitialCondense,
 #' @title Analyze 3'-seq Data with PIPETS
 #' Poisson Identification of PEaks from Term-Seq data. This is the full run method that begins with input Bed file and returns the strand split results
 #' @importFrom dplyr arrange distinct
-#' @importFrom stats aggregate ppois complete.cases
+#' @importFrom stats aggregate ppois complete.cases p.adjust
 #' @importFrom utils write.csv write.table read.table read.delim
 #' @importFrom GenomicRanges ranges end
 #' @param inputData Either input Bed file or GRanges object. Either must have at least chromosome, start, stop, and strand information
@@ -720,7 +734,7 @@ CompStrand_SecondaryCondense <- function(CompInitialCondense,
 #' @param adjacentPeakDistance During the peak condensing step, this parameter is used to define “adjacent” for significant genomic positions. This is used to identify initial peak structures in the data. By default this value is set to 2 to ensure that single instances of loss of signal are not sufficient to prevent otherwise contiguous peak signatures from being combined.
 #' @param peakCondensingDistance Following the initial peak condensing step, this parameter is used to identify peak structures in the data that are close enough to be considered part of the same termination signal. In testing, we have not identified cases in which two distinct termination signals so proximal that the default parameters incorrectly combine the signals together.
 #' @param threshAdjust This parameter is used to establish a global cutoff threshold informed by the data. PIPETS sorts the genomic positions of each strand from highest to lowest, and starts with the highest read coverage position and subtracts that value from the total read coverage for that strand. By default, this continues until 75% of the total read coverage has been accounted for. Increasing the percentage (e.x. 0.9) will lower the strictness of the cutoff, thus increasing the total number of significant results.
-#' @param pValue Choose the minimum pValue that the Poisson distribution test must pass in order to be considered significant
+#' @param user_pValue Choose the minimum pValue that the Poisson distribution test must pass in order to be considered significant
 #' @param topEndPercentage This parameter is used along with threshAdjust to trim off the influence exerted by high read coverage outliers. By default, it removes the top 0.01 percent of the highest read coverage positions from the calculation of the global threshold (e.x. if there are 200 positions that make up 75% of the total reads, then this parameter will take the top 2 read coverage positions and remove them from the calculation of the global threshold). This parameter can be tuned to account for datasets with outliers that would otherwise severely skew the global threshold.
 #' @param inputDataFormat PIPETS currently supports "bedFile" (default) and "GRanges" as input formats
 #' @examples
@@ -746,13 +760,13 @@ CompStrand_SecondaryCondense <- function(CompInitialCondense,
 PIPETS_FullRun <- function(inputData,readLength,OutputFileID,
     OutputFileDir,slidingWindowSize = 25,
     slidingWindowMovementDistance = 25,threshAdjust = 0.75,
-    pValue = 0.0005,topEndPercentage= 0.01,
+    user_pValue = 0.0005,topEndPercentage= 0.01,
     adjacentPeakDistance = 2, peakCondensingDistance = 20,
     inputDataFormat = "bedFile"){
     kicker <- inputCheck(inputData,readLength,OutputFileID,
                          OutputFileDir,slidingWindowSize, 
                          slidingWindowMovementDistance,threshAdjust,
-                         pValue,topEndPercentage,
+                         user_pValue,topEndPercentage,
                          adjacentPeakDistance, peakCondensingDistance,
                          inputDataFormat = inputDataFormat)
     if(kicker ==1){
@@ -769,7 +783,7 @@ PIPETS_FullRun <- function(inputData,readLength,OutputFileID,
     TopInititalPoisson <- TopStrand_InitialPoisson(
         MinusStrandReads = AllReads[[3]],slidingWindowSize = slidingWindowSize,
         slidingWindowMovementDistance = slidingWindowMovementDistance,
-        threshAdjust = threshAdjust, pValue = pValue,
+        threshAdjust = threshAdjust, user_pValue = user_pValue,
         topEndPercentage= topEndPercentage)
     TopInititalCondense <- TopStrand_InitialCondense(
         TopInititalPoisson = TopInititalPoisson,
@@ -782,7 +796,7 @@ PIPETS_FullRun <- function(inputData,readLength,OutputFileID,
     CompInitialPoisson <- CompStrand_InitialPoisson(
         PlusStrandReads = AllReads[[2]],slidingWindowSize = slidingWindowSize,
         slidingWindowMovementDistance = slidingWindowMovementDistance,
-        threshAdjust = threshAdjust, pValue = pValue,
+        threshAdjust = threshAdjust, user_pValue = user_pValue,
         topEndPercentage= topEndPercentage)
     CompInitialCondense <- CompStrand_InitialCondense(
         CompInitialPoisson = CompInitialPoisson,
