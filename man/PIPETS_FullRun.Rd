@@ -14,7 +14,7 @@ PIPETS_FullRun(
   slidingWindowMovementDistance = 25,
   threshAdjust = 0.75,
   user_pValue = 5e-04,
-  topEndPercentage = 0.01,
+  highOutlierTrim = 0.01,
   adjacentPeakDistance = 2,
   peakCondensingDistance = 20,
   inputDataFormat = "bedFile"
@@ -37,7 +37,7 @@ PIPETS_FullRun(
 
 \item{user_pValue}{Choose the minimum pValue that the Poisson distribution test must pass in order to be considered significant}
 
-\item{topEndPercentage}{This parameter is used along with threshAdjust to trim off the influence exerted by high read coverage outliers. By default, it removes the top 0.01 percent of the highest read coverage positions from the calculation of the global threshold (e.x. if there are 200 positions that make up 75\% of the total reads, then this parameter will take the top 2 read coverage positions and remove them from the calculation of the global threshold). This parameter can be tuned to account for datasets with outliers that would otherwise severely skew the global threshold.}
+\item{highOutlierTrim}{This parameter is used along with threshAdjust to trim off the influence exerted by high read coverage outliers. By default, it removes the top 0.01 percent of the highest read coverage positions from the calculation of the global threshold (e.x. if there are 200 positions that make up 75\% of the total reads, then this parameter will take the top 2 read coverage positions and remove them from the calculation of the global threshold). This parameter can be tuned to account for datasets with outliers that would otherwise severely skew the global threshold.}
 
 \item{adjacentPeakDistance}{During the peak condensing step, this parameter is used to define “adjacent” for significant genomic positions. This is used to identify initial peak structures in the data. By default this value is set to 2 to ensure that single instances of loss of signal are not sufficient to prevent otherwise contiguous peak signatures from being combined.}
 

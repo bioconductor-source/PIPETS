@@ -294,12 +294,13 @@ read coverage levels (and are likely too high to be the result of biological
 or technical noise) that can be used to define an expected read coverage level
 for biologically significant signal.
 
-#### pValue
-pValue is used in the first step of PIPETS and is the user defined p-value 
-cutoff for the Poisson Distribution Test. By default it is set to 0.005.
+#### user_pValue
+user_pValue is used in the first step of PIPETS and is the user defined p-value 
+cutoff for the initial Poisson Distribution Test and the subsequent Benjamini-
+Hochberg multiple testing correction. By default it is set to 0.005.
 
-#### topEndPercentage
-topEndPercentage is used to modulate the global read coverage minumum cutoff. By
+#### highOutlierTrim
+highOutlierTrim is used to modulate the global read coverage minumum cutoff. By
 default it is set to 0.01. This parameter is used to reduce the influence of 
 very high read coverage positions in the creation of the global cutoff. The 
 parameter describes what total percentage of the highest read coverage positions

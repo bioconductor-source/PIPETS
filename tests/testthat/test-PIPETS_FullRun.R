@@ -9,7 +9,6 @@ test_that("Test that input parameters are acceptable", {
     expect_warning(PIPETS_FullRun(inputData = "PIPETS_TestData.bed",readLength = 58,slidingWindowSize = 0,OutputFileID = "Test",OutputFileDir = as.character(tempdir())))
 
     expect_warning(PIPETS_FullRun(inputData = "PIPETS_TestData.bed",readLength = 58,slidingWindowSize = NA,OutputFileID = "Test",OutputFileDir = as.character(tempdir())))
-    expect_warning(PIPETS_FullRun(inputData = "PIPETS_TestData.bed",readLength = 58,topEndPercentage = 0,OutputFileID = "Test",OutputFileDir = as.character(tempdir())))
 })
 
 

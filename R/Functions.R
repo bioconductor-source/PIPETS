@@ -16,7 +16,7 @@ utils::globalVariables(c("coverage", "HighestPeakReadCoverage",
 #' @param slidingWindowMovementDistance See PIPETS_Run for full explanation
 #' @param threshAdjust See PIPETS_Run for full explanation
 #' @param user_pValue See PIPETS_Run for full explanation
-#' @param topEndPercentage See PIPETS_Run for full explanation
+#' @param highOutlierTrim See PIPETS_Run for full explanation
 #' @param adjacentPeakDistance See PIPETS_Run for full explanation
 #' @param peakCondensingDistance See PIPETS_Run for full explanation
 #' @param inputDataFormat PIPETS currently supports "bedFile" (default) and "GRanges" as input formats
@@ -26,7 +26,7 @@ utils::globalVariables(c("coverage", "HighestPeakReadCoverage",
 inputCheck <- function(inputData,readLength,OutputFileID,
                        OutputFileDir,slidingWindowSize, 
                        slidingWindowMovementDistance,threshAdjust,
-                       user_pValue,topEndPercentage,
+                       user_pValue,highOutlierTrim,
                        adjacentPeakDistance, peakCondensingDistance,
                        inputDataFormat = "bedFile"){
     kicker <- 0
@@ -75,7 +75,7 @@ inputCheck <- function(inputData,readLength,OutputFileID,
     }
     if(!is.numeric(slidingWindowSize)|
        !is.numeric(slidingWindowMovementDistance)|
-       !is.numeric(topEndPercentage)|!is.numeric(threshAdjust)|
+       !is.numeric(highOutlierTrim)|!is.numeric(threshAdjust)|
        !is.numeric(user_pValue)|!is.numeric(adjacentPeakDistance)|
        !is.numeric(peakCondensingDistance)|!is.numeric(readLength)){
         warning("One or more numerical parameters is not a number and PIPETS 
@@ -84,8 +84,8 @@ inputCheck <- function(inputData,readLength,OutputFileID,
         return(kicker)
     }
     if(slidingWindowSize == 0 | slidingWindowMovementDistance == 0 |
-       topEndPercentage == 0 | threshAdjust ==0 | readLength == 0 |
-       user_pValue == 0|adjacentPeakDistance ==0 | peakCondensingDistance == 0){
+       threshAdjust ==0 | readLength == 0 |
+       adjacentPeakDistance ==0 | peakCondensingDistance == 0){
         warning("One or more parameters is 0 and PIPETS cannot run")
         kicker <- 1
         return(kicker)
@@ -103,11 +103,11 @@ inputCheck <- function(inputData,readLength,OutputFileID,
 #' Used to calculate a cutoff threshold for the data
 #' @param rf Dataframe containing strand specific reads
 #' @param threshAdjust This parameter is used to establish a global cutoff threshold informed by the data. PIPETS sorts the genomic positions of each strand from highest to lowest, and starts with the highest read coverage position and subtracts that value from the total read coverage for that strand. By default, this continues until 75% of the total read coverage has been accounted for. Increasing the percentage (e.x. 0.9) will lower the strictness of the cutoff, thus increasing the total number of significant results.
-#' @param topEndPercentage This parameter is used along with threshAdjust to trim off the influence exerted by high read coverage outliers. By default, it removes the top 0.01 percent of the highest read coverage positions from the calculation of the global threshold (e.x. if there are 200 positions that make up 75% of the total reads, then this parameter will take the top 2 read coverage positions and remove them from the calculation of the global threshold). This parameter can be tuned to account for datasets with outliers that would otherwise severely skew the global threshold.
+#' @param highOutlierTrim This parameter is used along with threshAdjust to trim off the influence exerted by high read coverage outliers. By default, it removes the top 0.01 percent of the highest read coverage positions from the calculation of the global threshold (e.x. if there are 200 positions that make up 75% of the total reads, then this parameter will take the top 2 read coverage positions and remove them from the calculation of the global threshold). This parameter can be tuned to account for datasets with outliers that would otherwise severely skew the global threshold.
 #' @return Outputs threshold used for cutoff
 #' @noRd
 #'
-thresCalc <- function(rf, threshAdjust,topEndPercentage){
+thresCalc <- function(rf, threshAdjust,highOutlierTrim){
     threshCalc <- rf$coverage[order(rf$coverage, decreasing = TRUE)]
     tempMax <- sum(threshCalc) * threshAdjust
     posCount <- 1
@@ -121,9 +121,15 @@ thresCalc <- function(rf, threshAdjust,topEndPercentage){
             break()
         }
     }
-    rmTopEnd <- round(posCount * topEndPercentage)
-    threshold <- sum(threshCalc[rmTopEnd:posCount])/(posCount - rmTopEnd)
-    return(threshold)
+    if(!highOutlierTrim == 0){
+        rmTopEnd <- round(posCount * highOutlierTrim)
+        threshold <- sum(threshCalc[rmTopEnd:posCount])/(posCount - rmTopEnd)
+        return(threshold)
+    }
+    else if(highOutlierTrim == 0){
+        threshold <- sum(threshCalc[1:posCount])/posCount
+        return(threshold)
+    }
 }
 
 
@@ -136,21 +142,44 @@ thresCalc <- function(rf, threshAdjust,topEndPercentage){
 #' @noRd
 #'
 topConsecutiveCheck <- function(OF, OMF, aPD, TPH){
-    x <- 1
-    peakFrameCoord <- 1
-    for(x in seq_along(OF[,1])){
-        tempSubset <- ""
-        if(x < nrow(OF) & (OF$stop[x+1] - OF$stop[x]) <= aPD){
-            TPH <- rbind(TPH,OF[x,, drop=FALSE])
-        }
-        else if(x == nrow(OF)){
-            if((OF$stop[x] - OF$stop[(x-1)]) <= aPD) {
+    if(nrow(OF)>1){
+        x <- 1
+        peakFrameCoord <- 1
+        for(x in seq_along(OF[,1])){
+            tempSubset <- ""
+            if(x < nrow(OF) & (OF$stop[x+1] - OF$stop[x]) <= aPD){
+                TPH <- rbind(TPH,OF[x,, drop=FALSE])
+            }
+            else if(x == nrow(OF)){
+                if((OF$stop[x] - OF$stop[(x-1)]) <= aPD) {
+                    TPH <- rbind(TPH,OF[x,, drop=FALSE])
+                    OMF$chrom[peakFrameCoord] <- OF$chrom[1]
+                    OMF$strand[peakFrameCoord] <- OF$strand[1]
+                    tS <- subset(TPH, coverage == max(TPH$coverage))
+                    tS <- subset(tS, subset = !duplicated(tS[c("coverage")]),
+                                 select = c("chrom", "start", "stop","coverage","strand"))
+                    OMF$HighestPeak[peakFrameCoord] <- tS$stop[1]
+                    OMF$HighestPeakReadCoverage[peakFrameCoord] <-tS$coverage[1]
+                    OMF$LowestPeakCoord[peakFrameCoord] <- min(TPH$stop)
+                    OMF$HighestPeakCoord[peakFrameCoord] <- max(TPH$stop)
+                    peakFrameCoord <- peakFrameCoord + 1
+                    OMF[peakFrameCoord,] <- NA
+                    TPH <- as.data.frame(matrix(nrow = 0, ncol = ncol(OF)))
+                    colnames(TPH) <- colnames(OF)
+                }
+                else if(!(OF$stop[x] - OF$stop[x-1]) <= aPD){
+                    OMF[peakFrameCoord,] <- c(OF$chrom[1],
+                                              OF$strand[x], OF$stop[x],OF$coverage[x],
+                                              OF$stop[x],OF$stop[x])
+                }
+            }
+            else {
                 TPH <- rbind(TPH,OF[x,, drop=FALSE])
                 OMF$chrom[peakFrameCoord] <- OF$chrom[1]
                 OMF$strand[peakFrameCoord] <- OF$strand[1]
                 tS <- subset(TPH, coverage == max(TPH$coverage))
-                tS <- subset(tS, subset = !duplicated(tS[c("coverage")]),
-                    select = c("chrom", "start", "stop","coverage","strand"))
+                tS <- subset(tS,subset = !duplicated(tempSubset[c("coverage")]),
+                             select = c("chrom", "start", "stop","coverage","strand"))
                 OMF$HighestPeak[peakFrameCoord] <- tS$stop[1]
                 OMF$HighestPeakReadCoverage[peakFrameCoord] <-tS$coverage[1]
                 OMF$LowestPeakCoord[peakFrameCoord] <- min(TPH$stop)
@@ -160,30 +189,13 @@ topConsecutiveCheck <- function(OF, OMF, aPD, TPH){
                 TPH <- as.data.frame(matrix(nrow = 0, ncol = ncol(OF)))
                 colnames(TPH) <- colnames(OF)
             }
-            else if(!(OF$stop[x] - OF$stop[x-1]) <= aPD){
-                OMF[peakFrameCoord,] <- c(OF$chrom[1],
-                    OF$strand[x], OF$stop[x],OF$coverage[x],
-                    OF$stop[x],OF$stop[x])
-            }
         }
-        else {
-            TPH <- rbind(TPH,OF[x,, drop=FALSE])
-            OMF$chrom[peakFrameCoord] <- OF$chrom[1]
-            OMF$strand[peakFrameCoord] <- OF$strand[1]
-            tS <- subset(TPH, coverage == max(TPH$coverage))
-            tS <- subset(tS,subset = !duplicated(tempSubset[c("coverage")]),
-                    select = c("chrom", "start", "stop","coverage","strand"))
-            OMF$HighestPeak[peakFrameCoord] <- tS$stop[1]
-            OMF$HighestPeakReadCoverage[peakFrameCoord] <-tS$coverage[1]
-            OMF$LowestPeakCoord[peakFrameCoord] <- min(TPH$stop)
-            OMF$HighestPeakCoord[peakFrameCoord] <- max(TPH$stop)
-            peakFrameCoord <- peakFrameCoord + 1
-            OMF[peakFrameCoord,] <- NA
-            TPH <- as.data.frame(matrix(nrow = 0, ncol = ncol(OF)))
-            colnames(TPH) <- colnames(OF)
-        }
+        return(OMF)
     }
-    return(OMF)
+    else if(nrow(OF)==1){
+        OMF[1,] <- c(OF$chrom[1],OF$strand[1],OF$stop[1],OF$coverage[1],OF$stop[1],OF$stop[1])
+        return(OMF)
+    }
 }
 
 
@@ -196,20 +208,43 @@ topConsecutiveCheck <- function(OF, OMF, aPD, TPH){
 #' @noRd
 #'
 compConsecutiveCheck <- function(OF, OMF, aPD, TPH){
-    x <- 1
-    peakFrameCoord <- 1
-    for(x in seq_along(OF[,1])){
-        tempSubset <- ""
-        if(x < nrow(OF) & (OF$start[x+1] - OF$start[x]) <= aPD){
-            TPH <- rbind(TPH,OF[x,, drop=FALSE])
-        }
-        else if(x == nrow(OF)){
-            if((OF$start[x] - OF$start[(x-1)]) <= aPD) {
+    if(nrow(OF)>1){
+        x <- 1
+        peakFrameCoord <- 1
+        for(x in seq_along(OF[,1])){
+            tempSubset <- ""
+            if(x < nrow(OF) & (OF$start[x+1] - OF$start[x]) <= aPD){
+                TPH <- rbind(TPH,OF[x,, drop=FALSE])
+            }
+            else if(x == nrow(OF)){
+                if((OF$start[x] - OF$start[(x-1)]) <= aPD) {
+                    TPH <- rbind(TPH,OF[x,, drop=FALSE])
+                    OMF$chrom[peakFrameCoord] <- OF$chrom[1]
+                    OMF$strand[peakFrameCoord] <- OF$strand[1]
+                    tS <- subset(TPH, coverage == max(TPH$coverage))
+                    tS <- subset(tS, subset = !duplicated(tS[c("coverage")]),
+                                 select = c("chrom", "start", "stop","coverage","strand"))
+                    OMF$HighestPeak[peakFrameCoord] <- tS$start[1]
+                    OMF$HighestPeakReadCoverage[peakFrameCoord] <-tS$coverage[1]
+                    OMF$LowestPeakCoord[peakFrameCoord] <- min(TPH$start)
+                    OMF$HighestPeakCoord[peakFrameCoord] <- max(TPH$start)
+                    peakFrameCoord <- peakFrameCoord + 1
+                    OMF[peakFrameCoord,] <- NA
+                    TPH <- as.data.frame(matrix(nrow = 0, ncol = ncol(OF)))
+                    colnames(TPH) <- colnames(OF)
+                }
+                else if(!(OF$start[x] - OF$start[x-1]) <= aPD){
+                    OMF[peakFrameCoord,] <- c(OF$chrom[1],
+                                              OF$strand[x], OF$start[x],OF$coverage[x],
+                                              OF$start[x],OF$start[x])
+                }
+            }
+            else {
                 TPH <- rbind(TPH,OF[x,, drop=FALSE])
                 OMF$chrom[peakFrameCoord] <- OF$chrom[1]
                 OMF$strand[peakFrameCoord] <- OF$strand[1]
                 tS <- subset(TPH, coverage == max(TPH$coverage))
-                tS <- subset(tS, subset = !duplicated(tS[c("coverage")]),
+                tS <- subset(tS,subset = !duplicated(tempSubset[c("coverage")]),
                              select = c("chrom", "start", "stop","coverage","strand"))
                 OMF$HighestPeak[peakFrameCoord] <- tS$start[1]
                 OMF$HighestPeakReadCoverage[peakFrameCoord] <-tS$coverage[1]
@@ -220,30 +255,14 @@ compConsecutiveCheck <- function(OF, OMF, aPD, TPH){
                 TPH <- as.data.frame(matrix(nrow = 0, ncol = ncol(OF)))
                 colnames(TPH) <- colnames(OF)
             }
-            else if(!(OF$start[x] - OF$start[x-1]) <= aPD){
-                OMF[peakFrameCoord,] <- c(OF$chrom[1],
-                                          OF$strand[x], OF$start[x],OF$coverage[x],
-                                          OF$start[x],OF$start[x])
-            }
         }
-        else {
-            TPH <- rbind(TPH,OF[x,, drop=FALSE])
-            OMF$chrom[peakFrameCoord] <- OF$chrom[1]
-            OMF$strand[peakFrameCoord] <- OF$strand[1]
-            tS <- subset(TPH, coverage == max(TPH$coverage))
-            tS <- subset(tS,subset = !duplicated(tempSubset[c("coverage")]),
-                         select = c("chrom", "start", "stop","coverage","strand"))
-            OMF$HighestPeak[peakFrameCoord] <- tS$start[1]
-            OMF$HighestPeakReadCoverage[peakFrameCoord] <-tS$coverage[1]
-            OMF$LowestPeakCoord[peakFrameCoord] <- min(TPH$start)
-            OMF$HighestPeakCoord[peakFrameCoord] <- max(TPH$start)
-            peakFrameCoord <- peakFrameCoord + 1
-            OMF[peakFrameCoord,] <- NA
-            TPH <- as.data.frame(matrix(nrow = 0, ncol = ncol(OF)))
-            colnames(TPH) <- colnames(OF)
-        }
+        return(OMF)
     }
-    return(OMF)
+    else if(nrow(OF)==1){
+        OMF[1,] <- c(OF$chrom[1],OF$strand[1],OF$start[1],OF$coverage[1],OF$start[1],OF$start[1])
+        return(OMF)
+    }
+    
 }
 
 #' consecutivePeakCheck
@@ -255,54 +274,61 @@ compConsecutiveCheck <- function(OF, OMF, aPD, TPH){
 #' @noRd
 #'
 consecutivePeakCheck <- function(OMF, SWR, pCD,TWH){
-    PFC <- 1
-    for(x in seq_along(OMF[,1])){
-        tempSubset <- ""
-        if(x < nrow(OMF) & (OMF[x+1,5] - OMF[x,6]) <= pCD){
-            TWH <- rbind(TWH,OMF[x,])}
-        else if(x == nrow(OMF)){
-            if((OMF[x,6] - OMF[(x-1),5]) <= pCD){
-                TWH <- rbind(TWH,OMF[x,])
+    if(nrow(OMF)>1){
+        PFC <- 1
+        for(x in seq_along(OMF[,1])){
+            tempSubset <- ""
+            if(x < nrow(OMF) & (OMF[x+1,5] - OMF[x,6]) <= pCD){
+                TWH <- rbind(TWH,OMF[x,])}
+            else if(x == nrow(OMF)){
+                if((OMF[x,6] - OMF[(x-1),5]) <= pCD){
+                    TWH <- rbind(TWH,OMF[x,])
+                    SWR$chrom[PFC] <- OMF$chrom[1]
+                    SWR$strand[PFC] <- OMF$strand[1]
+                    tS <- subset(TWH,HighestPeakReadCoverage == max(TWH[,4]))
+                    tS <- subset(tS,subset =
+                                     !duplicated(tS[c("HighestPeakReadCoverage")]),select =
+                                     c("chrom","strand","HighestPeak","HighestPeakReadCoverage",
+                                       "LowestPeakCoord","HighestPeakCoord"))
+                    SWR$HighestPeak[PFC] <- tS$HighestPeak[1]
+                    SWR$HighestPeakReadCoverage[PFC] <-tS$HighestPeakReadCoverage[1]
+                    SWR$LowestPeakCoord[PFC] <- min(TWH$LowestPeakCoord)
+                    SWR$HighestPeakCoord[PFC] <- max(TWH$HighestPeakCoord)
+                    PFC <- PFC + 1
+                    SWR[PFC,] <- NA
+                    TWH <- as.data.frame(matrix(nrow = 0, ncol = ncol(OMF)))
+                    colnames(TWH) <- colnames(OMF)}
+                else if(!(OMF$LowestPeakCoord[x]-OMF$HighestPeakCoord[x-1])<= pCD){
+                    SWR[PFC,] <- c(OMF$chrom[1],
+                                   OMF$strand[x],OMF$HighestPeak[x],
+                                   OMF$HighestPeakReadCoverage[x],OMF$HighestPeak[x],
+                                   OMF$HighestPeak[x])}
+            }
+            else {
+                TWH <- rbind(TWH,OMF[x,, drop=FALSE])
                 SWR$chrom[PFC] <- OMF$chrom[1]
                 SWR$strand[PFC] <- OMF$strand[1]
                 tS <- subset(TWH,HighestPeakReadCoverage == max(TWH[,4]))
-                tS <- subset(tS,subset =
-                    !duplicated(tS[c("HighestPeakReadCoverage")]),select =
-                    c("chrom","strand","HighestPeak","HighestPeakReadCoverage",
-                    "LowestPeakCoord","HighestPeakCoord"))
+                tS <- subset(tS,
+                             subset = !duplicated(tS[c("HighestPeakReadCoverage")]),
+                             select = c("chrom","strand","HighestPeak",
+                                        "HighestPeakReadCoverage","LowestPeakCoord","HighestPeakCoord"))
                 SWR$HighestPeak[PFC] <- tS$HighestPeak[1]
-                SWR$HighestPeakReadCoverage[PFC] <-tS$HighestPeakReadCoverage[1]
+                SWR$HighestPeakReadCoverage[PFC] <- tS$HighestPeakReadCoverage[1]
                 SWR$LowestPeakCoord[PFC] <- min(TWH$LowestPeakCoord)
                 SWR$HighestPeakCoord[PFC] <- max(TWH$HighestPeakCoord)
                 PFC <- PFC + 1
                 SWR[PFC,] <- NA
                 TWH <- as.data.frame(matrix(nrow = 0, ncol = ncol(OMF)))
                 colnames(TWH) <- colnames(OMF)}
-            else if(!(OMF$LowestPeakCoord[x]-OMF$HighestPeakCoord[x-1])<= pCD){
-                SWR[PFC,] <- c(OMF$chrom[1],
-                    OMF$strand[x],OMF$HighestPeak[x],
-                    OMF$HighestPeakReadCoverage[x],OMF$HighestPeak[x],
-                    OMF$HighestPeak[x])}
         }
-        else {
-            TWH <- rbind(TWH,OMF[x,, drop=FALSE])
-            SWR$chrom[PFC] <- OMF$chrom[1]
-            SWR$strand[PFC] <- OMF$strand[1]
-            tS <- subset(TWH,HighestPeakReadCoverage == max(TWH[,4]))
-            tS <- subset(tS,
-                subset = !duplicated(tS[c("HighestPeakReadCoverage")]),
-                select = c("chrom","strand","HighestPeak",
-                "HighestPeakReadCoverage","LowestPeakCoord","HighestPeakCoord"))
-            SWR$HighestPeak[PFC] <- tS$HighestPeak[1]
-            SWR$HighestPeakReadCoverage[PFC] <- tS$HighestPeakReadCoverage[1]
-            SWR$LowestPeakCoord[PFC] <- min(TWH$LowestPeakCoord)
-            SWR$HighestPeakCoord[PFC] <- max(TWH$HighestPeakCoord)
-            PFC <- PFC + 1
-            SWR[PFC,] <- NA
-            TWH <- as.data.frame(matrix(nrow = 0, ncol = ncol(OMF)))
-            colnames(TWH) <- colnames(OMF)}
+        return(SWR)
     }
-    return(SWR)
+    
+    else if (nrow(OMF) == 1){
+        return(OMF)
+    }
+    
 }
 
 
@@ -460,13 +486,13 @@ GRanges_Split <- function(inputData,readLength, OutputFileID){
 #' @param slidingWindowMovementDistance This parameter sets the distance that the sliding window will be moved. By default, it is set to move by half of the sliding window size in order to ensure that almost every position in the data is tested twice.
 #' @param threshAdjust This parameter is used to establish a global cutoff threshold informed by the data. PIPETS sorts the genomic positions of each strand from highest to lowest, and starts with the highest read coverage position and subtracts that value from the total read coverage for that strand. By default, this continues until 75% of the total read coverage has been accounted for. Increasing the percentage (e.x. 0.9) will lower the strictness of the cutoff, thus increasing the total number of significant results.
 #' @param user_pValue Choose the minimum pValue that the Poisson distribution test must pass in order to be considered significant
-#' @param topEndPercentage This parameter is used along with threshAdjust to trim off the influence exerted by high read coverage outliers. By default, it removes the top 0.01 percent of the highest read coverage positions from the calculation of the global threshold (e.x. if there are 200 positions that make up 75% of the total reads, then this parameter will take the top 2 read coverage positions and remove them from the calculation of the global threshold). This parameter can be tuned to account for datasets with outliers that would otherwise severely skew the global threshold.
+#' @param highOutlierTrim This parameter is used along with threshAdjust to trim off the influence exerted by high read coverage outliers. By default, it removes the top 0.01 percent of the highest read coverage positions from the calculation of the global threshold (e.x. if there are 200 positions that make up 75% of the total reads, then this parameter will take the top 2 read coverage positions and remove them from the calculation of the global threshold). This parameter can be tuned to account for datasets with outliers that would otherwise severely skew the global threshold.
 #' @return Returns a dataframe with all genomic positions that were identified as having significant read coverage.
 #' @noRd
 #'
 TopStrand_InitialPoisson <- function(MinusStrandReads,slidingWindowSize = 25,
                                      slidingWindowMovementDistance = 25,threshAdjust = 0.75,user_pValue = 0.0005,
-                                     topEndPercentage= 0.01){
+                                     highOutlierTrim= 0.01){
     MSR <- MinusStrandReads
     SWMD <- slidingWindowMovementDistance
     SWS <- slidingWindowSize
@@ -479,7 +505,7 @@ TopStrand_InitialPoisson <- function(MinusStrandReads,slidingWindowSize = 25,
     SWF$coverage <- 0
     SWF$position <- seq_along(SWF[,1])
     posThreshold <- thresCalc(rf = MSR, threshAdjust = threshAdjust,
-                              topEndPercentage = topEndPercentage)
+                              highOutlierTrim = highOutlierTrim)
     toUser <- paste("Top Strand Cutoff", posThreshold, sep = " ")
     message(as.character(toUser))
     nm <- "coverage"
@@ -593,13 +619,13 @@ TopStrand_SecondaryCondense <- function(TopInititalCondense,
 #' @param slidingWindowMovementDistance This parameter sets the distance that the sliding window will be moved. By default, it is set to move by half of the sliding window size in order to ensure that almost every position in the data is tested twice.
 #' @param threshAdjust This parameter is used to establish a global cutoff threshold informed by the data. PIPETS sorts the genomic positions of each strand from highest to lowest, and starts with the highest read coverage position and subtracts that value from the total read coverage for that strand. By default, this continues until 75% of the total read coverage has been accounted for. Increasing the percentage (e.x. 0.9) will lower the strictness of the cutoff, thus increasing the total number of significant results.
 #' @param user_pValue Choose the minimum pValue that the Poisson distribution test must pass in order to be considered significant
-#' @param topEndPercentage This parameter is used along with threshAdjust to trim off the influence exerted by high read coverage outliers. By default, it removes the top 0.01 percent of the highest read coverage positions from the calculation of the global threshold (e.x. if there are 200 positions that make up 75% of the total reads, then this parameter will take the top 2 read coverage positions and remove them from the calculation of the global threshold). This parameter can be tuned to account for datasets with outliers that would otherwise severely skew the global threshold.
+#' @param highOutlierTrim This parameter is used along with threshAdjust to trim off the influence exerted by high read coverage outliers. By default, it removes the top 0.01 percent of the highest read coverage positions from the calculation of the global threshold (e.x. if there are 200 positions that make up 75% of the total reads, then this parameter will take the top 2 read coverage positions and remove them from the calculation of the global threshold). This parameter can be tuned to account for datasets with outliers that would otherwise severely skew the global threshold.
 #' @return Returns a dataframe with all genomic positions that were identified as having significant read coverage.
 #' @noRd
 #'
 CompStrand_InitialPoisson <- function(PlusStrandReads,slidingWindowSize = 25,
                                       slidingWindowMovementDistance = 25,threshAdjust = 0.75,user_pValue = 0.0005,
-                                      topEndPercentage= 0.01){
+                                      highOutlierTrim= 0.01){
     PSR <- PlusStrandReads
     SWMD <- slidingWindowMovementDistance
     SWS <- slidingWindowSize
@@ -612,7 +638,7 @@ CompStrand_InitialPoisson <- function(PlusStrandReads,slidingWindowSize = 25,
     SWF$coverage <- 0
     SWF$position <- seq_along(SWF[,1])
     compThreshold <- thresCalc(rf = PSR, threshAdjust = threshAdjust,
-                               topEndPercentage = topEndPercentage)
+                               highOutlierTrim = highOutlierTrim)
     toUser <- paste("Complement Strand Cutoff", compThreshold, sep = " ")
     message(as.character(toUser))
     nm <- "coverage"
@@ -735,7 +761,7 @@ CompStrand_SecondaryCondense <- function(CompInitialCondense,
 #' @param peakCondensingDistance Following the initial peak condensing step, this parameter is used to identify peak structures in the data that are close enough to be considered part of the same termination signal. In testing, we have not identified cases in which two distinct termination signals so proximal that the default parameters incorrectly combine the signals together.
 #' @param threshAdjust This parameter is used to establish a global cutoff threshold informed by the data. PIPETS sorts the genomic positions of each strand from highest to lowest, and starts with the highest read coverage position and subtracts that value from the total read coverage for that strand. By default, this continues until 75% of the total read coverage has been accounted for. Increasing the percentage (e.x. 0.9) will lower the strictness of the cutoff, thus increasing the total number of significant results.
 #' @param user_pValue Choose the minimum pValue that the Poisson distribution test must pass in order to be considered significant
-#' @param topEndPercentage This parameter is used along with threshAdjust to trim off the influence exerted by high read coverage outliers. By default, it removes the top 0.01 percent of the highest read coverage positions from the calculation of the global threshold (e.x. if there are 200 positions that make up 75% of the total reads, then this parameter will take the top 2 read coverage positions and remove them from the calculation of the global threshold). This parameter can be tuned to account for datasets with outliers that would otherwise severely skew the global threshold.
+#' @param highOutlierTrim This parameter is used along with threshAdjust to trim off the influence exerted by high read coverage outliers. By default, it removes the top 0.01 percent of the highest read coverage positions from the calculation of the global threshold (e.x. if there are 200 positions that make up 75% of the total reads, then this parameter will take the top 2 read coverage positions and remove them from the calculation of the global threshold). This parameter can be tuned to account for datasets with outliers that would otherwise severely skew the global threshold.
 #' @param inputDataFormat PIPETS currently supports "bedFile" (default) and "GRanges" as input formats
 #' @examples
 #' ## When run, the user will be prompted to provide a string for file names
@@ -760,13 +786,13 @@ CompStrand_SecondaryCondense <- function(CompInitialCondense,
 PIPETS_FullRun <- function(inputData,readLength,OutputFileID,
     OutputFileDir,slidingWindowSize = 25,
     slidingWindowMovementDistance = 25,threshAdjust = 0.75,
-    user_pValue = 0.0005,topEndPercentage= 0.01,
+    user_pValue = 0.0005,highOutlierTrim= 0.01,
     adjacentPeakDistance = 2, peakCondensingDistance = 20,
     inputDataFormat = "bedFile"){
     kicker <- inputCheck(inputData,readLength,OutputFileID,
                          OutputFileDir,slidingWindowSize, 
                          slidingWindowMovementDistance,threshAdjust,
-                         user_pValue,topEndPercentage,
+                         user_pValue,highOutlierTrim,
                          adjacentPeakDistance, peakCondensingDistance,
                          inputDataFormat = inputDataFormat)
     if(kicker ==1){
@@ -784,7 +810,7 @@ PIPETS_FullRun <- function(inputData,readLength,OutputFileID,
         MinusStrandReads = AllReads[[3]],slidingWindowSize = slidingWindowSize,
         slidingWindowMovementDistance = slidingWindowMovementDistance,
         threshAdjust = threshAdjust, user_pValue = user_pValue,
-        topEndPercentage= topEndPercentage)
+        highOutlierTrim= highOutlierTrim)
     TopInititalCondense <- TopStrand_InitialCondense(
         TopInititalPoisson = TopInititalPoisson,
         adjacentPeakDistance = adjacentPeakDistance)
@@ -797,7 +823,7 @@ PIPETS_FullRun <- function(inputData,readLength,OutputFileID,
         PlusStrandReads = AllReads[[2]],slidingWindowSize = slidingWindowSize,
         slidingWindowMovementDistance = slidingWindowMovementDistance,
         threshAdjust = threshAdjust, user_pValue = user_pValue,
-        topEndPercentage= topEndPercentage)
+        highOutlierTrim= highOutlierTrim)
     CompInitialCondense <- CompStrand_InitialCondense(
         CompInitialPoisson = CompInitialPoisson,
         adjacentPeakDistance = adjacentPeakDistance)
