@@ -55,9 +55,9 @@ BiocManager::install("PIPETS")
 ### Basic PIPETS Run
 PIPETS accepts two types of data as inputs: Bed Files or GRanges objects. Both
 sets of data undergo the same analysis method. Running the method differs 
-slightly if the user is using a GRanges input.Here we show the basic walkthrough 
-of running PIPETS on an input Bed file. The four parameters that need to 
-be specified to run PIPETS are `inputData`, the expected `readLength`,  
+slightly if the user is using a GRanges input. Here we show the basic walkthrough 
+of running PIPETS on an input Bed file. The five parameters that need to 
+be specified to run PIPETS are `inputData`, the `readScore` of "good quality" reads,  
 the prefix for the output file name `OutputFileID`, the file path to the output
 director `OutputFileDir` ,and the type of input data `inputDataFormat`.
 
@@ -69,7 +69,7 @@ library(PIPETS)
 
 #Bed File Input
 PIPETS_FullRun(inputData = "PIPETS_TestData.bed"
-               ,readLength = 58, OutputFileID = "ExampleResultsRun", 
+               ,readScore = 42, OutputFileID = "ExampleResultsRun", 
                OutputFileDir = tempdir(),
                inputDataFormat = "bedFile")
 
@@ -90,9 +90,9 @@ GRanges_Object <- read.delim(file = "PIPETS_TestData.bed",
 
 GRanges_Object <- GRanges(seqnames = GRanges_Object$V1,
         ranges = IRanges(start = GRanges_Object$V2,end = GRanges_Object$V3
-        ),strand = GRanges_Object$V6)
+        ),score = GRanges_Object$V5 ,strand = GRanges_Object$V6)
 
-ResultsList <- PIPETS_FullRun(inputData = GRanges_Object, readLength = 58, 
+ResultsList <- PIPETS_FullRun(inputData = GRanges_Object, readScore = 42, 
                OutputFileDir = tempdir(),
                OutputFileID = "ExampleResultsRun", inputDataFormat = "GRanges")
 
@@ -148,9 +148,10 @@ PIPETS takes in aligned term-seq/3'-seq reads in
 [Bed format](https://genome.ucsc.edu/FAQ/FAQformat.html#format1).
 Traditional Bedformat files always has the same first 3 columns: chrom, 
 chromStart, and chromStop. PIPETS requires that these three columns are in this
-order tofunction. PIPETS also requires the strand column. PIPETS automtically 
-detectswhich column contains the strand information, so the user does not need 
-tospecify its location. All other information will not be ignored. 
+order to function. PIPETS also requires the score column and the strand column. 
+PIPETS automtically detects which column contains the strand information, 
+so the user does not need to specify its location.
+
 
 PIPETS intentionally does not use gene information during its analysis. This is
 to ensure that there is no gene-centric bias, and that all termination signal is
@@ -203,12 +204,14 @@ knitr::include_graphics("PIPETS_StepOne_Two.png")
 ```
 
 After the final sliding window has been tested, PIPETS compiles all genomic 
-positions that were identified at least once as being significant. Many of these
-positions will be consecutive with at least one other position, which is 
-expected as bacterial termination is not a perfectly succinct process, and there
-is often signal surrounding true termination positions. The next step of PIPETS
-processes these positions and addresses the data architecture of termination 
-"peaks".
+positions that were identified at least once as being significant. We then employ
+Benjamini-Hochberg multiple testing correction to reduce the incidence of Type I 
+error. The resulting list of genomic positions with significant read coverage is
+then passed to downstream steps. Many of these positions will be consecutive 
+with at least one other position, which is expected as bacterial termination is 
+not a perfectly succinct process, and there is often signal surrounding true 
+termination positions. The next step of PIPETS processes these positions and 
+addresses the data architecture of termination "peaks".
 
 #### Step Two: Condensing of Proximal Significant Positions 
 
@@ -245,21 +248,20 @@ cases of this distance causing PIPETS to combine two independent signals. After
 this step has completed running, PIPETS will output the strand specific results
 files.
 
-### Parameters
-PIPETS requires the user to input two parameters in order to function: the path
-to the input Bed file, and the expected read length. The remaining parameters
-have defaults that have been established based on parameter testing of the data
-in the original PIPETS publication. 
+### Other Parameters
+While PIPETS only requires 5 parameters from the user to run, there are 
+other parameters that can be tuned to alter PIPETS' performance. These 
+parameters have set defaults intended to provide a moderately strict analysis.
 
 #### slidingWindowSize
-slidingWindowSize defines the total size of the sliding window that is used in
+slidingWindowSize (numerical value) defines the total size of the sliding window that is used in
 the first step of PIPETS. The default is set to 25, which will create a sliding
 window of size 51 (the first sliding window is created on the 26th genomic 
 position by default, and extends 25 bp upstream and downstream of that 
 postition).
 
 #### slidingWindowMovementDistance
-slidingWindowMovementDistance defines the distance that the sliding window moves
+slidingWindowMovementDistance (numerical value) defines the distance that the sliding window moves
 during the first step of PIPETS. By default it is set to 25. This ensures that
 almost every position in the input data is tested twice, increasing the 
 likelihood that PIPETS identifies biologically significant termination signal
@@ -270,7 +272,7 @@ positions in the data more than two times) had diminishing returns on increasing
 the sensitivity, and caused higher run times.
 
 #### adjacentPeakDistance
-adjacentPeakDistance is used in the second step of PIPETS to combine signal from
+adjacentPeakDistance (numerical value) is used in the second step of PIPETS to combine signal from
 adjacent signficant termination positions. By default this is set to 2, meaning
 that if two significant positions are within 2 bp of each other, they are added
 to the same termination peak. In testing, raising this value had very little
@@ -279,13 +281,14 @@ technical problems does not create situations in which very proximal signal is
 confused for separate termination results.
 
 #### peakCondensingDistance
-peakCondensingDistance is used in the third step of PIPETS to combine signal 
+peakCondensingDistance (numerical value) is used in the third step of PIPETS to combine signal 
 from proximal termination peaks. By default this is set to 20. It is used to
 test if peaks are close enough together to be from the same termination signal,
 or if they are sufficiently far away to be distinct termination sites.
 
 #### threshAdjust
-threshAdjust is used to establish a global cutoff for minimum read coverage for
+threshAdjust (numerical value greater than 0 and less than 1 as decimal) 
+is used to establish a global cutoff for minimum read coverage for
 the input data. By default it is set to 0.75. This parameter describes the 
 percentage of the total read coverage that should be used to inform an "average"
 read coverage cutoff. In other words, take the top 75% of the read coverage 
@@ -295,12 +298,14 @@ or technical noise) that can be used to define an expected read coverage level
 for biologically significant signal.
 
 #### user_pValue
-user_pValue is used in the first step of PIPETS and is the user defined p-value 
-cutoff for the initial Poisson Distribution Test and the subsequent Benjamini-
-Hochberg multiple testing correction. By default it is set to 0.005.
+user_pValue (numerical value  less than 1 as decimal) is used in the first 
+step of PIPETS and is the user defined p-value cutoff for the initial Poisson 
+Distribution Test and the subsequent Benjamini-Hochberg multiple testing correction. 
+By default it is set to 0.0005.
 
 #### highOutlierTrim
-highOutlierTrim is used to modulate the global read coverage minumum cutoff. By
+highOutlierTrim (numerical value greater than 0 and less than 1 as decimal) 
+is used to modulate the global read coverage minumum cutoff. By
 default it is set to 0.01. This parameter is used to reduce the influence of 
 very high read coverage positions in the creation of the global cutoff. The 
 parameter describes what total percentage of the highest read coverage positions

@@ -9,7 +9,7 @@ utils::globalVariables(c("coverage", "HighestPeakReadCoverage",
 #' @importFrom utils read.delim file_test
 #' @importFrom GenomicRanges ranges
 #' @param inputData Either a string for the filepath of the bed file or the R GRanges object
-#' @param readLength See PIPETS_Run for full explanation
+#' @param readScore See PIPETS_Run for full explanation
 #' @param OutputFileID String input that will be the identifying
 #' @param OutputFileDir Either a string for the filepath of the bed file or the R GRanges object
 #' @param slidingWindowSize See PIPETS_Run for full explanation
@@ -23,7 +23,7 @@ utils::globalVariables(c("coverage", "HighestPeakReadCoverage",
 #' @return Returns kicker variable that will stop PIPETS if error is detected
 #' @noRd
 #'
-inputCheck <- function(inputData,readLength,OutputFileID,
+inputCheck <- function(inputData,readScore,OutputFileID,
                        OutputFileDir,slidingWindowSize, 
                        slidingWindowMovementDistance,threshAdjust,
                        user_pValue,highOutlierTrim,
@@ -54,7 +54,7 @@ inputCheck <- function(inputData,readLength,OutputFileID,
             kicker <- 1
             return(kicker)
         }
-        else if(ncol(test) < 4){
+        else if(ncol(test) < 6){
             warning("Not enough columns in input file")
             kicker <- 1
             return(kicker)
@@ -72,25 +72,29 @@ inputCheck <- function(inputData,readLength,OutputFileID,
             kicker <- 1
             return(kicker)
         }
+        if(length(inputData$score) < (length(inputData)/2)){
+            warning("Less than half of the Genomic Ranges sequences have any score values, cannot run")
+            kicker <- 1
+            return(kicker)
+        }
     }
     if(!is.numeric(slidingWindowSize)|
        !is.numeric(slidingWindowMovementDistance)|
        !is.numeric(highOutlierTrim)|!is.numeric(threshAdjust)|
        !is.numeric(user_pValue)|!is.numeric(adjacentPeakDistance)|
-       !is.numeric(peakCondensingDistance)|!is.numeric(readLength)){
+       !is.numeric(peakCondensingDistance)|!is.numeric(readScore)){
         warning("One or more numerical parameters is not a number and PIPETS 
                 cannot run")
         kicker <- 1
         return(kicker)
     }
     if(slidingWindowSize == 0 | slidingWindowMovementDistance == 0 |
-       threshAdjust ==0 | readLength == 0 |
+       threshAdjust ==0 | readScore == 0 |
        adjacentPeakDistance ==0 | peakCondensingDistance == 0){
         warning("One or more parameters is 0 and PIPETS cannot run")
         kicker <- 1
         return(kicker)
     }
-    
     return(kicker)
 }
 
@@ -130,6 +134,195 @@ thresCalc <- function(rf, threshAdjust,highOutlierTrim){
         threshold <- sum(threshCalc[1:posCount])/posCount
         return(threshold)
     }
+}
+
+
+#' consecutivePeakCheck
+#' Combines Proximal Peaks
+#' @param OMF OutputMergeFrame from function this is nested in
+#' @param SWR Output of file that is created in nested function
+#' @param pCD peak condensing distance established in full run
+#' @return Returns significant peaks to be fixed and output after
+#' @noRd
+#'
+consecutivePeakCheck <- function(OMF, SWR, pCD,TWH){
+    if(nrow(OMF)>1){
+        PFC <- 1
+        for(x in seq_along(OMF[,1])){
+            tempSubset <- ""
+            if(x < nrow(OMF) & (OMF[x+1,5] - OMF[x,6]) <= pCD){
+                TWH <- rbind(TWH,OMF[x,])}
+            else if(x == nrow(OMF)){
+                if((OMF[x,6] - OMF[(x-1),5]) <= pCD){
+                    TWH <- rbind(TWH,OMF[x,])
+                    SWR$chrom[PFC] <- OMF$chrom[1]
+                    SWR$strand[PFC] <- OMF$strand[1]
+                    tS <- subset(TWH,HighestPeakReadCoverage == max(TWH[,4]))
+                    tS <- subset(tS,subset =
+                                     !duplicated(tS[c("HighestPeakReadCoverage")]),select =
+                                     c("chrom","strand","HighestPeak","HighestPeakReadCoverage",
+                                       "LowestPeakCoord","HighestPeakCoord"))
+                    SWR$HighestPeak[PFC] <- tS$HighestPeak[1]
+                    SWR$HighestPeakReadCoverage[PFC] <-tS$HighestPeakReadCoverage[1]
+                    SWR$LowestPeakCoord[PFC] <- min(TWH$LowestPeakCoord)
+                    SWR$HighestPeakCoord[PFC] <- max(TWH$HighestPeakCoord)
+                    PFC <- PFC + 1
+                    SWR[PFC,] <- NA
+                    TWH <- as.data.frame(matrix(nrow = 0, ncol = ncol(OMF)))
+                    colnames(TWH) <- colnames(OMF)}
+                else if(!(OMF$LowestPeakCoord[x]-OMF$HighestPeakCoord[x-1])<= pCD){
+                    SWR[PFC,] <- c(OMF$chrom[1],
+                                   OMF$strand[x],OMF$HighestPeak[x],
+                                   OMF$HighestPeakReadCoverage[x],OMF$HighestPeak[x],
+                                   OMF$HighestPeak[x])}
+            }
+            else {
+                TWH <- rbind(TWH,OMF[x,, drop=FALSE])
+                SWR$chrom[PFC] <- OMF$chrom[1]
+                SWR$strand[PFC] <- OMF$strand[1]
+                tS <- subset(TWH,HighestPeakReadCoverage == max(TWH[,4]))
+                tS <- subset(tS,
+                             subset = !duplicated(tS[c("HighestPeakReadCoverage")]),
+                             select = c("chrom","strand","HighestPeak",
+                                        "HighestPeakReadCoverage","LowestPeakCoord","HighestPeakCoord"))
+                SWR$HighestPeak[PFC] <- tS$HighestPeak[1]
+                SWR$HighestPeakReadCoverage[PFC] <- tS$HighestPeakReadCoverage[1]
+                SWR$LowestPeakCoord[PFC] <- min(TWH$LowestPeakCoord)
+                SWR$HighestPeakCoord[PFC] <- max(TWH$HighestPeakCoord)
+                PFC <- PFC + 1
+                SWR[PFC,] <- NA
+                TWH <- as.data.frame(matrix(nrow = 0, ncol = ncol(OMF)))
+                colnames(TWH) <- colnames(OMF)}
+        }
+        return(SWR)
+    }
+    
+    else if (nrow(OMF) == 1){
+        return(OMF)
+    }
+    
+}
+
+
+
+
+#' Bed_Split
+#' First step of PIPETS. Takes input Bed files and splits them by strand while also assigning read coverage to each genomic position
+#' @title Split Input Bed Data By Strand
+#' @importFrom dplyr arrange distinct
+#' @importFrom stats aggregate ppois complete.cases
+#' @importFrom utils write.csv write.table read.table read.delim
+#' @param inputData Input BED file that is not strand split. For PIPETS, the first column must be the chromosome name, the second column must be the start coordinate, the third column must be the stop coordinate, and the 6th column must be the strand. Columns 4 and 5 must be present but their information will not be used.
+#' @param readScore The user must input the read score from the input bed files that is used to determine good quality reads. In many modern sequencing runs, a score of 60 is used.
+#' @param OutputFileID User provided identifying string for output bed files
+#' @return Returns a list containing the Plus Strand Reads, the Minus Strand Reads, and the user defined name for the files. Also writes out the strand split bed files to the project directory.
+#' @examples
+#' ## Split input bed file into stranded files without running PIPETS
+#' Bed_Split(inputBedFile="Test_Data.bed", readScore=42,OutputFileID = "Test1")
+#' @noRd
+#'
+Bed_Split <- function(inputData,readScore, OutputFileID){
+    message("+-----------------------------------+")
+    OutputFileName <- OutputFileID
+    message("Splitting Input Bed File By Strand")
+    rB <- read.delim(file = as.character(inputData),
+                     header = FALSE, stringsAsFactors = FALSE)
+    startBed <- rB[,c(1,2,3,5), drop=FALSE]
+    if(length(names(rB[grepl("-", rB[1,], fixed = TRUE)])) >0){
+        startBed$V4 <- rB[,names(rB[grepl('-', rB[1,], fixed = TRUE)])]
+    } else if (length(names(rB[grepl("+", rB[1,], fixed = TRUE)])) >0){
+        startBed$V4 <- rB[,names(rB[grepl('+', rB[1,], fixed = TRUE)])]
+    }
+    colnames(startBed) <- c("chrom","start","stop","score","strand")
+    startBed$coverage <- 0
+    startBed <- startBed[ , c("chrom", "start", "stop","score", "coverage", "strand"),
+                          drop=FALSE]
+    PSR <- startBed[startBed$strand %in% "+",, drop=FALSE]
+    PSR <- PSR[PSR$score == readScore,, drop=FALSE] 
+    PSC <- as.data.frame(table(PSR$stop))
+    PSR <- distinct(PSR, stop, .keep_all = TRUE)
+    PSR <- arrange(PSR, stop)
+    PSR$coverage <- PSC$Freq[match(PSR$stop,PSC$Var1)]
+    PSR <- PSR[,c(1,2,3,5,6)]
+    MSR <- startBed[startBed$strand %in% "-",, drop=FALSE]
+    MSR <- MSR[MSR$score == readScore,, drop=FALSE]
+    MSC <- as.data.frame(table(MSR$start))
+    MSR <- distinct(MSR, start, .keep_all = TRUE)
+    MSR <- arrange(MSR, start)
+    MSR$coverage <- MSC$Freq[match(MSR$start,MSC$Var1)]
+    MSR <- MSR[,c(1,2,3,5,6)]
+    write.table(PSR,
+                file = paste(as.character(OutputFileName),"PlusStrandCounts.bed", sep = "_")
+                ,quote = FALSE, row.names = FALSE, col.names = FALSE)
+    write.table(MSR,
+                file = paste(as.character(OutputFileName),
+                             "MinusStrandCounts.bed", sep = "_"),
+                quote = FALSE, row.names = FALSE, col.names = FALSE)
+    return(list(OutputFileName,PSR,MSR))
+}
+
+#' GRanges_Split
+#' First step of PIPETS when GRanges option is selected for input. Takes input granges object, strand splits it and trims off reads that are too short or long, and then outputs strand split bed file to directory and preserves strand split granges objects to be output at the end of the method
+#' @title Split Input Bed Data By Strand
+#' @importFrom dplyr arrange distinct
+#' @importFrom stats aggregate ppois complete.cases
+#' @importFrom utils write.csv write.table read.table read.delim
+#' @importFrom GenomicRanges ranges end
+#' @importFrom BiocGenerics strand
+#' @importFrom methods is
+#' @param inputData Input granges object. PIPETS requires chromosome, start, stop, and strand information from the granges object
+#' @param readScore The user must input the read score from the input bed files that is used to determine good quality reads. In many modern sequencing runs, a score of 60 is used.
+#' @param OutputFileID User input string that will be used to identify output bed files
+#' @return Returns a list containing the Plus Strand Reads, the Minus Strand Reads, and the user defined name for the files. Also writes out the strand split bed files to the project directory.
+#' @examples
+#' ## Take input bed file, convert to GRanges object, and insert into method
+#' testBed <-  read.table(file = "PIPETS_TestData.bed", header = FALSE,stringsAsFactors=FALSE)
+#' testBed.gr <- GRanges(seqnames=testBed[,1],ranges=IRanges(start=testBed[,2],end=testBed[,3]),strand=testBed[,6], score=testBed[,5])
+#' GRanges_Split(inputData=testBed.gr, readScore=42, OutputFileID = "Test1")
+#' @noRd
+#'
+GRanges_Split <- function(inputData,readScore, OutputFileID){
+    message("+-----------------------------------+")
+    message("Splitting Input GRanges Object By Strand")
+    allMinusRanges <- inputData[strand(inputData) == "-",]
+    allPlusRanges <- inputData[strand(inputData) == "+",]
+    
+    allMinusRanges <- allMinusRanges[allMinusRanges$score == readScore,]
+    allPlusRanges <- allPlusRanges[allPlusRanges$score == readScore,]
+    
+    allMinusCoverage <- as.data.frame(table(end(allPlusRanges)))
+    allMinusReads <- as.data.frame(allPlusRanges)
+    allMinusReads <- distinct(allMinusReads, end, .keep_all = TRUE)
+    allMinusReads <- arrange(allMinusReads, end)
+    allMinusReads$coverage <- allMinusCoverage$Freq[base::match
+                                                    (allMinusReads$end,allMinusCoverage$Var1)]
+    allMinusReads <- allMinusReads[,c(1,2,3,5,7)]
+    allMinusReads <- allMinusReads[,c("seqnames","start","end","coverage","strand")
+                              , drop=FALSE]
+    colnames(allMinusReads) <- c("chrom","start","stop","coverage","strand")
+    allMinusReads$start <- allMinusReads$start - 1
+    allPlusCoverage <- as.data.frame(table(end(allMinusRanges)))
+    allPlusReads <- as.data.frame(allMinusRanges)
+    allPlusReads <- distinct(allPlusReads, end, .keep_all = TRUE)
+    allPlusReads <- arrange(allPlusReads, end)
+    allPlusReads$coverage <- allPlusCoverage$Freq[base::match
+                                                  (allPlusReads$end,allPlusCoverage$Var1)]
+    allPlusReads <- allPlusReads[,c(1,2,3,5,7)]
+    allPlusReads <- allPlusReads[,c("seqnames","start","end","coverage","strand")
+                             , drop=FALSE]
+    colnames(allPlusReads) <- c("chrom","start","stop","coverage","strand")
+    allPlusReads$start <- allPlusReads$start - 1
+    
+    write.table(allPlusReads,file = paste(as.character(OutputFileID),
+                                          "PlusStrandCounts.bed", sep = "_")
+                ,quote = FALSE, row.names = FALSE, col.names = FALSE)
+    write.table(allMinusReads,
+                file = paste(as.character(OutputFileID),
+                             "MinusStrandCounts.bed", sep = "_"),
+                quote = FALSE, row.names = FALSE, col.names = FALSE)
+    return(list(OutputFileID,allPlusReads,allMinusReads,allPlusRanges,
+                allMinusRanges))
+    
 }
 
 
@@ -264,215 +457,6 @@ compConsecutiveCheck <- function(OF, OMF, aPD, TPH){
     }
     
 }
-
-#' consecutivePeakCheck
-#' Combines Proximal Peaks
-#' @param OMF OutputMergeFrame from function this is nested in
-#' @param SWR Output of file that is created in nested function
-#' @param pCD peak condensing distance established in full run
-#' @return Returns significant peaks to be fixed and output after
-#' @noRd
-#'
-consecutivePeakCheck <- function(OMF, SWR, pCD,TWH){
-    if(nrow(OMF)>1){
-        PFC <- 1
-        for(x in seq_along(OMF[,1])){
-            tempSubset <- ""
-            if(x < nrow(OMF) & (OMF[x+1,5] - OMF[x,6]) <= pCD){
-                TWH <- rbind(TWH,OMF[x,])}
-            else if(x == nrow(OMF)){
-                if((OMF[x,6] - OMF[(x-1),5]) <= pCD){
-                    TWH <- rbind(TWH,OMF[x,])
-                    SWR$chrom[PFC] <- OMF$chrom[1]
-                    SWR$strand[PFC] <- OMF$strand[1]
-                    tS <- subset(TWH,HighestPeakReadCoverage == max(TWH[,4]))
-                    tS <- subset(tS,subset =
-                                     !duplicated(tS[c("HighestPeakReadCoverage")]),select =
-                                     c("chrom","strand","HighestPeak","HighestPeakReadCoverage",
-                                       "LowestPeakCoord","HighestPeakCoord"))
-                    SWR$HighestPeak[PFC] <- tS$HighestPeak[1]
-                    SWR$HighestPeakReadCoverage[PFC] <-tS$HighestPeakReadCoverage[1]
-                    SWR$LowestPeakCoord[PFC] <- min(TWH$LowestPeakCoord)
-                    SWR$HighestPeakCoord[PFC] <- max(TWH$HighestPeakCoord)
-                    PFC <- PFC + 1
-                    SWR[PFC,] <- NA
-                    TWH <- as.data.frame(matrix(nrow = 0, ncol = ncol(OMF)))
-                    colnames(TWH) <- colnames(OMF)}
-                else if(!(OMF$LowestPeakCoord[x]-OMF$HighestPeakCoord[x-1])<= pCD){
-                    SWR[PFC,] <- c(OMF$chrom[1],
-                                   OMF$strand[x],OMF$HighestPeak[x],
-                                   OMF$HighestPeakReadCoverage[x],OMF$HighestPeak[x],
-                                   OMF$HighestPeak[x])}
-            }
-            else {
-                TWH <- rbind(TWH,OMF[x,, drop=FALSE])
-                SWR$chrom[PFC] <- OMF$chrom[1]
-                SWR$strand[PFC] <- OMF$strand[1]
-                tS <- subset(TWH,HighestPeakReadCoverage == max(TWH[,4]))
-                tS <- subset(tS,
-                             subset = !duplicated(tS[c("HighestPeakReadCoverage")]),
-                             select = c("chrom","strand","HighestPeak",
-                                        "HighestPeakReadCoverage","LowestPeakCoord","HighestPeakCoord"))
-                SWR$HighestPeak[PFC] <- tS$HighestPeak[1]
-                SWR$HighestPeakReadCoverage[PFC] <- tS$HighestPeakReadCoverage[1]
-                SWR$LowestPeakCoord[PFC] <- min(TWH$LowestPeakCoord)
-                SWR$HighestPeakCoord[PFC] <- max(TWH$HighestPeakCoord)
-                PFC <- PFC + 1
-                SWR[PFC,] <- NA
-                TWH <- as.data.frame(matrix(nrow = 0, ncol = ncol(OMF)))
-                colnames(TWH) <- colnames(OMF)}
-        }
-        return(SWR)
-    }
-    
-    else if (nrow(OMF) == 1){
-        return(OMF)
-    }
-    
-}
-
-
-
-
-#' Bed_Split
-#' First step of PIPETS. Takes input Bed files and splits them by strand while also assigning read coverage to each genomic position
-#' @title Split Input Bed Data By Strand
-#' @importFrom dplyr arrange distinct
-#' @importFrom stats aggregate ppois complete.cases
-#' @importFrom utils write.csv write.table read.table read.delim
-#' @param inputData Input BED file that is not strand split. For PIPETS, the first column must be the chromosome name, the second column must be the start coordinate, the third column must be the stop coordinate, and the 6th column must be the strand. Columns 4 and 5 must be present but their information will not be used.
-#' @param readLength The user must input the expected length of each “proper” read from the 3’-seq protocol. PIPETS gives a +/- 2 range for detecting reads to be used in the input BED files based on distributions of read coverage in parameter testing.
-#' @param OutputFileID User provided identifying string for output bed files
-#' @return Returns a list containing the Plus Strand Reads, the Minus Strand Reads, and the user defined name for the files. Also writes out the strand split bed files to the project directory.
-#' @examples
-#' ## Split input bed file into stranded files without running PIPETS
-#' Bed_Split(inputBedFile="Test_Data.bed", readLength=58,OutputFileID = "Test1")
-#' @noRd
-#'
-Bed_Split <- function(inputData,readLength, OutputFileID){
-    message("+-----------------------------------+")
-    OutputFileName <- OutputFileID
-    message("Splitting Input Bed File By Strand")
-    rB <- read.delim(file = as.character(inputData),
-        header = FALSE, stringsAsFactors = FALSE)
-    startBed <- rB[,c(1,2,3), drop=FALSE]
-    if(length(names(rB[grepl("-", rB[1,], fixed = TRUE)])) >0){
-        startBed$V4 <- rB[,names(rB[grepl('-', rB[1,], fixed = TRUE)])]
-    } else if (length(names(rB[grepl("+", rB[1,], fixed = TRUE)])) >0){
-        startBed$V4 <- rB[,names(rB[grepl('+', rB[1,], fixed = TRUE)])]
-  }
-    colnames(startBed) <- c("chrom","start","stop","strand")
-    startBed$coverage <- 0
-    startBed <- startBed[ , c("chrom", "start", "stop", "coverage", "strand"),
-                          drop=FALSE]
-    PSR <- startBed[startBed$strand %in% "+",, drop=FALSE]
-    PSR <- PSR[(PSR$stop-PSR$start) %in% (readLength-2):(readLength+2),,
-               drop=FALSE]
-    PSC <- as.data.frame(table(PSR$stop))
-    PSR <- distinct(PSR, stop, .keep_all = TRUE)
-    PSR <- arrange(PSR, stop)
-    PSR$coverage <- PSC$Freq[match(PSR$stop,PSC$Var1)]
-    tempChrom <- PSR$chrom[1]
-    tempStrand <- PSR$strand[1]
-    PSR <- aggregate(coverage~start,PSR,sum)
-    PSR$chrom <- tempChrom
-    PSR$stop <- PSR$start + readLength
-    PSR$strand <- tempStrand
-    PSR <- PSR[,c("chrom","start","stop","coverage","strand"), drop=FALSE]
-    MSR <- startBed[startBed$strand %in% "-",, drop=FALSE]
-    MSR <- MSR[(MSR$stop-MSR$start) %in% (readLength-2):(readLength+2),,
-               drop=FALSE]
-    MSC <- as.data.frame(table(MSR$start))
-    MSR <- distinct(MSR, start, .keep_all = TRUE)
-    MSR <- arrange(MSR, start)
-    MSR$coverage <- MSC$Freq[match(MSR$start,MSC$Var1)]
-    tempChrom <- MSR$chrom[1]
-    tempStrand <- MSR$strand[1]
-    MSR <- aggregate(coverage~stop,MSR,sum)
-    MSR$chrom <- tempChrom
-    MSR$start <- MSR$stop - readLength
-    MSR$strand <- tempStrand
-    MSR <- MSR[,c("chrom","start","stop","coverage","strand"), drop=FALSE]
-    write.table(PSR,
-    file = paste(as.character(OutputFileName),"PlusStrandCounts.bed", sep = "_")
-    ,quote = FALSE, row.names = FALSE, col.names = FALSE)
-    write.table(MSR,
-    file = paste(as.character(OutputFileName),
-        "MinusStrandCounts.bed", sep = "_"),
-    quote = FALSE, row.names = FALSE, col.names = FALSE)
-    return(list(OutputFileName,PSR,MSR))
-}
-
-#' GRanges_Split
-#' First step of PIPETS when GRanges option is selected for input. Takes input granges object, strand splits it and trims off reads that are too short or long, and then outputs strand split bed file to directory and preserves strand split granges objects to be output at the end of the method
-#' @title Split Input Bed Data By Strand
-#' @importFrom dplyr arrange distinct
-#' @importFrom stats aggregate ppois complete.cases
-#' @importFrom utils write.csv write.table read.table read.delim
-#' @importFrom GenomicRanges ranges end
-#' @importFrom BiocGenerics strand
-#' @importFrom methods is
-#' @param inputData Input granges object. PIPETS requires chromosome, start, stop, and strand information from the granges object
-#' @param readLength The user must input the expected length of each “proper” read from the 3’-seq protocol. PIPETS gives a +/- 2 range for detecting reads to be used in the input BED files based on distributions of read coverage in parameter testing.
-#' @param OutputFileID User input string that will be used to identify output bed files
-#' @return Returns a list containing the Plus Strand Reads, the Minus Strand Reads, and the user defined name for the files. Also writes out the strand split bed files to the project directory.
-#' @examples
-#' ## Take input bed file, convert to GRanges object, and insert into method
-#' testBed <-  read.table(file = "PIPETS_TestData.bed", header = FALSE,stringsAsFactors=FALSE)
-#' testBed.gr <- GRanges(seqnames=testBed[,1],ranges=IRanges(start=testBed[,2],end=testBed[,3]),strand=testBed[,6])
-#' GRanges_Split(inputData=testBed.gr, readLength=58, OutputFileID = "Test1")
-#' @noRd
-#'
-GRanges_Split <- function(inputData,readLength, OutputFileID){
-    message("+-----------------------------------+")
-    message("Splitting Input GRanges Object By Strand")
-    allMinusRanges <- inputData[strand(inputData) == "-",]
-    allPlusRanges <- inputData[strand(inputData) == "+",]
-    allMinusRanges <- allMinusRanges[BiocGenerics::width(allMinusRanges) %in% 
-                                         c((readLength-2):(readLength+2)),]
-    allPlusRanges <- allPlusRanges[BiocGenerics::width(allPlusRanges) %in% 
-                                       c((readLength-2):(readLength+2)),]
-    allMinusCoverage <- as.data.frame(table(end(allPlusRanges)))
-    allMinusReads <- as.data.frame(allPlusRanges)
-    allMinusReads <- distinct(allMinusReads, end, .keep_all = TRUE)
-    allMinusReads <- arrange(allMinusReads, end)
-    allMinusReads$coverage <- allMinusCoverage$Freq[base::match
-                                    (allMinusReads$end,allMinusCoverage$Var1)]
-    tempHold <- aggregate(coverage~start,allMinusReads,sum)
-    tempHold$chrom <- allMinusReads$seqnames[base::match
-                                        (tempHold$start,allMinusReads$start)]
-    tempHold$stop <- tempHold$start + readLength
-    tempHold$strand <- allMinusReads$strand[base::match
-                                        (tempHold$start,allMinusReads$start)]
-    allMinusReads <- tempHold[,c("chrom","start","stop","coverage","strand")
-                              , drop=FALSE]
-    allMinusReads$start <- allMinusReads$start - 1
-    allPlusCoverage <- as.data.frame(table(end(allMinusRanges)))
-    allPlusReads <- as.data.frame(allMinusRanges)
-    allPlusReads <- distinct(allPlusReads, end, .keep_all = TRUE)
-    allPlusReads <- arrange(allPlusReads, end)
-    allPlusReads$coverage <- allPlusCoverage$Freq[base::match
-                                        (allPlusReads$end,allPlusCoverage$Var1)]
-    tempHold <- aggregate(coverage~start,allPlusReads,sum)
-    tempHold$chrom <- allPlusReads$seqnames[base::match
-                                            (tempHold$start,allPlusReads$start)]
-    tempHold$stop <- tempHold$start + readLength
-    tempHold$strand <- allPlusReads$strand[base::match
-                                           (tempHold$start,allPlusReads$start)]
-    allPlusReads <- tempHold[,c("chrom","start","stop","coverage","strand")
-                             , drop=FALSE]
-    allPlusReads$start <- allPlusReads$start - 1
-    write.table(allPlusReads,file = paste(as.character(OutputFileID),
-                                          "PlusStrandCounts.bed", sep = "_")
-                ,quote = FALSE, row.names = FALSE, col.names = FALSE)
-    write.table(allMinusReads,
-                file = paste(as.character(OutputFileID),
-                             "MinusStrandCounts.bed", sep = "_"),
-                quote = FALSE, row.names = FALSE, col.names = FALSE)
-    return(list(OutputFileID,allPlusReads,allMinusReads,allPlusRanges,
-                allMinusRanges))
-}
-
 
 
 
@@ -754,7 +738,7 @@ CompStrand_SecondaryCondense <- function(CompInitialCondense,
 #' @param inputData Either input Bed file or GRanges object. Either must have at least chromosome, start, stop, and strand information
 #' @param OutputFileID User defined header for the output files of PIPETS. Will be the prefix for output bed and csv files.
 #' @param OutputFileDir User defined output file directory where all files generated by PIPETS will be placed
-#' @param readLength The user must input the expected length of each “proper” read from the 3’-seq protocol. PIPETS gives a +/- 2 range for detecting reads to be used in the input BED files based on distributions of read coverage in parameter testing.
+#' @param readScore The user must input the read score from the input bed files that is used to determine good quality reads. In many modern sequencing runs, a score of 60 is used.
 #' @param slidingWindowSize This parameter establishes the distance up and down stream of each position that a sliding window will be created around. The default value is 25, and this will result in a sliding window of total size 51 (25 upstream + position (1) + 25 downstream).
 #' @param slidingWindowMovementDistance This parameter sets the distance that the sliding window will be moved. By default, it is set to move by half of the sliding window size in order to ensure that almost every position in the data is tested twice.
 #' @param adjacentPeakDistance During the peak condensing step, this parameter is used to define “adjacent” for significant genomic positions. This is used to identify initial peak structures in the data. By default this value is set to 2 to ensure that single instances of loss of signal are not sufficient to prevent otherwise contiguous peak signatures from being combined.
@@ -769,27 +753,27 @@ CompStrand_SecondaryCondense <- function(CompInitialCondense,
 #' ## After completion, the output files will be created in the R project directory
 #'
 #' ## For run with defualt strictness of analysis
-#' PIPETS_FullRun(inputData = "PIPETS_TestData.bed", readLength = 58, 
+#' PIPETS_FullRun(inputData = "PIPETS_TestData.bed", readScore = 42, 
 #' OutputFileDir = "~/Desktop/", OutputFileID = "Antibiotic1")
 #'
 #' ## For a more strict run (can be run for files with high total read depth)
-#' PIPETS_FullRun(inputData = "PIPETS_TestData.bed", readLength = 58, threshAdjust = 0.6, 
+#' PIPETS_FullRun(inputData = "PIPETS_TestData.bed", readScore = 42, threshAdjust = 0.6, 
 #' OutputFileDir = "~/Desktop/", OutputFileID = "Antibiotic1_Strict")
 #'
 #' ## For a less strict run (for data with low total read depth)
-#' PIPETS_FullRun(inputData = "PIPETS_TestData.bed", readLength = 58, threshAdjust = 0.9, 
+#' PIPETS_FullRun(inputData = "PIPETS_TestData.bed", readScore = 42, threshAdjust = 0.9, 
 #' OutputFileDir = "~/Desktop/", OutputFileID = "Antibiotic1_Lax")
 #'
 #' @return PIPETS outputs strand specific results files as well as strand specific bed files to the directory that the R project is in.
 #' @export
 
-PIPETS_FullRun <- function(inputData,readLength,OutputFileID,
+PIPETS_FullRun <- function(inputData,readScore,OutputFileID,
     OutputFileDir,slidingWindowSize = 25,
     slidingWindowMovementDistance = 25,threshAdjust = 0.75,
     user_pValue = 0.0005,highOutlierTrim= 0.01,
     adjacentPeakDistance = 2, peakCondensingDistance = 20,
     inputDataFormat = "bedFile"){
-    kicker <- inputCheck(inputData,readLength,OutputFileID,
+    kicker <- inputCheck(inputData,readScore,OutputFileID,
                          OutputFileDir,slidingWindowSize, 
                          slidingWindowMovementDistance,threshAdjust,
                          user_pValue,highOutlierTrim,
@@ -800,9 +784,9 @@ PIPETS_FullRun <- function(inputData,readLength,OutputFileID,
     }
     OutputFileID <- paste(OutputFileDir, OutputFileID, sep = "")
     if(inputDataFormat %in% "bedFile"){
-        AllReads <- Bed_Split(inputData, readLength, OutputFileID)
+        AllReads <- Bed_Split(inputData, readScore, OutputFileID)
     } else if (inputDataFormat %in% "GRanges"){
-        AllReads <- GRanges_Split(inputData,readLength, OutputFileID)
+        AllReads <- GRanges_Split(inputData,readScore, OutputFileID)
     }
     message("+-----------------------------------+")
     message("Performing Top Strand Analysis")

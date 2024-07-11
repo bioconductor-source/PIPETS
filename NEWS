@@ -1,3 +1,11 @@
+Changes in version 1.1.2 (2024-07-11)
++ Changed PIPETS to use read quality score as a cutoff instead of read length. Functions as better trimming process
++ Input bed files and GRanges objects now both correctly use read quality score
++ Updated Vignette file wording to properly match recent changes
+
+Changes in version 1.1.1 (2024-06-06)
++ Resolved Git inconsistencies, made minor fixes
+
 Changes in version 1.1.0 (2024-05-14)
 + Added Benjamini-Hochberg multiple testing correction to help reduce incidence of Type I error
 
