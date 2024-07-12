@@ -7,7 +7,7 @@ Poisson Identification of PEaks from Term-Seq data. This is the full run method 
 \usage{
 PIPETS_FullRun(
   inputData,
-  readScore,
+  readScoreMinimum,
   OutputFileID,
   OutputFileDir,
   slidingWindowSize = 25,
@@ -23,7 +23,7 @@ PIPETS_FullRun(
 \arguments{
 \item{inputData}{Either input Bed file or GRanges object. Either must have at least chromosome, start, stop, and strand information}
 
-\item{readScore}{The user must input the read score from the input bed files that is used to determine good quality reads. In many modern sequencing runs, a score of 60 is used.}
+\item{readScoreMinimum}{The user must input the minimum read score from the input bed files that is used to determine good quality reads. All values equal to and greater than the input are considered. In many modern sequencing runs, a score of 60 is used.}
 
 \item{OutputFileID}{User defined header for the output files of PIPETS. Will be the prefix for output bed and csv files.}
 
@@ -57,15 +57,15 @@ PIPETS_FullRun
 ## After completion, the output files will be created in the R project directory
 
 ## For run with defualt strictness of analysis
-PIPETS_FullRun(inputData = "PIPETS_TestData.bed", readScore = 42, 
+PIPETS_FullRun(inputData = "PIPETS_TestData.bed", readScoreMinimum = 42, 
 OutputFileDir = "~/Desktop/", OutputFileID = "Antibiotic1")
 
 ## For a more strict run (can be run for files with high total read depth)
-PIPETS_FullRun(inputData = "PIPETS_TestData.bed", readScore = 42, threshAdjust = 0.6, 
+PIPETS_FullRun(inputData = "PIPETS_TestData.bed", readScoreMinimum = 42, threshAdjust = 0.6, 
 OutputFileDir = "~/Desktop/", OutputFileID = "Antibiotic1_Strict")
 
 ## For a less strict run (for data with low total read depth)
-PIPETS_FullRun(inputData = "PIPETS_TestData.bed", readScore = 42, threshAdjust = 0.9, 
+PIPETS_FullRun(inputData = "PIPETS_TestData.bed", readScoreMinimum = 42, threshAdjust = 0.9, 
 OutputFileDir = "~/Desktop/", OutputFileID = "Antibiotic1_Lax")
 
 }

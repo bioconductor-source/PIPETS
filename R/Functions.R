@@ -9,7 +9,7 @@ utils::globalVariables(c("coverage", "HighestPeakReadCoverage",
 #' @importFrom utils read.delim file_test
 #' @importFrom GenomicRanges ranges
 #' @param inputData Either a string for the filepath of the bed file or the R GRanges object
-#' @param readScore See PIPETS_Run for full explanation
+#' @param readScoreMinimum See PIPETS_Run for full explanation
 #' @param OutputFileID String input that will be the identifying
 #' @param OutputFileDir Either a string for the filepath of the bed file or the R GRanges object
 #' @param slidingWindowSize See PIPETS_Run for full explanation
@@ -23,7 +23,7 @@ utils::globalVariables(c("coverage", "HighestPeakReadCoverage",
 #' @return Returns kicker variable that will stop PIPETS if error is detected
 #' @noRd
 #'
-inputCheck <- function(inputData,readScore,OutputFileID,
+inputCheck <- function(inputData,readScoreMinimum,OutputFileID,
                        OutputFileDir,slidingWindowSize, 
                        slidingWindowMovementDistance,threshAdjust,
                        user_pValue,highOutlierTrim,
@@ -82,14 +82,14 @@ inputCheck <- function(inputData,readScore,OutputFileID,
        !is.numeric(slidingWindowMovementDistance)|
        !is.numeric(highOutlierTrim)|!is.numeric(threshAdjust)|
        !is.numeric(user_pValue)|!is.numeric(adjacentPeakDistance)|
-       !is.numeric(peakCondensingDistance)|!is.numeric(readScore)){
+       !is.numeric(peakCondensingDistance)|!is.numeric(readScoreMinimum)){
         warning("One or more numerical parameters is not a number and PIPETS 
                 cannot run")
         kicker <- 1
         return(kicker)
     }
     if(slidingWindowSize == 0 | slidingWindowMovementDistance == 0 |
-       threshAdjust ==0 | readScore == 0 |
+       threshAdjust ==0 | readScoreMinimum == 0 |
        adjacentPeakDistance ==0 | peakCondensingDistance == 0){
         warning("One or more parameters is 0 and PIPETS cannot run")
         kicker <- 1
@@ -213,15 +213,15 @@ consecutivePeakCheck <- function(OMF, SWR, pCD,TWH){
 #' @importFrom stats aggregate ppois complete.cases
 #' @importFrom utils write.csv write.table read.table read.delim
 #' @param inputData Input BED file that is not strand split. For PIPETS, the first column must be the chromosome name, the second column must be the start coordinate, the third column must be the stop coordinate, and the 6th column must be the strand. Columns 4 and 5 must be present but their information will not be used.
-#' @param readScore The user must input the read score from the input bed files that is used to determine good quality reads. In many modern sequencing runs, a score of 60 is used.
+#' @param readScoreMinimum The user must input the minimum read score from the input bed files that is used to determine good quality reads. All values equal to and greater than the input are considered. In many modern sequencing runs, a score of 60 is used.
 #' @param OutputFileID User provided identifying string for output bed files
 #' @return Returns a list containing the Plus Strand Reads, the Minus Strand Reads, and the user defined name for the files. Also writes out the strand split bed files to the project directory.
 #' @examples
 #' ## Split input bed file into stranded files without running PIPETS
-#' Bed_Split(inputBedFile="Test_Data.bed", readScore=42,OutputFileID = "Test1")
+#' Bed_Split(inputBedFile="Test_Data.bed", readScoreMinimum=42,OutputFileID = "Test1")
 #' @noRd
 #'
-Bed_Split <- function(inputData,readScore, OutputFileID){
+Bed_Split <- function(inputData,readScoreMinimum, OutputFileID){
     message("+-----------------------------------+")
     OutputFileName <- OutputFileID
     message("Splitting Input Bed File By Strand")
@@ -238,14 +238,14 @@ Bed_Split <- function(inputData,readScore, OutputFileID){
     startBed <- startBed[ , c("chrom", "start", "stop","score", "coverage", "strand"),
                           drop=FALSE]
     PSR <- startBed[startBed$strand %in% "+",, drop=FALSE]
-    PSR <- PSR[PSR$score == readScore,, drop=FALSE] 
+    PSR <- PSR[PSR$score >= readScoreMinimum,, drop=FALSE] 
     PSC <- as.data.frame(table(PSR$stop))
     PSR <- distinct(PSR, stop, .keep_all = TRUE)
     PSR <- arrange(PSR, stop)
     PSR$coverage <- PSC$Freq[match(PSR$stop,PSC$Var1)]
     PSR <- PSR[,c(1,2,3,5,6)]
     MSR <- startBed[startBed$strand %in% "-",, drop=FALSE]
-    MSR <- MSR[MSR$score == readScore,, drop=FALSE]
+    MSR <- MSR[MSR$score >= readScoreMinimum,, drop=FALSE]
     MSC <- as.data.frame(table(MSR$start))
     MSR <- distinct(MSR, start, .keep_all = TRUE)
     MSR <- arrange(MSR, start)
@@ -271,24 +271,24 @@ Bed_Split <- function(inputData,readScore, OutputFileID){
 #' @importFrom BiocGenerics strand
 #' @importFrom methods is
 #' @param inputData Input granges object. PIPETS requires chromosome, start, stop, and strand information from the granges object
-#' @param readScore The user must input the read score from the input bed files that is used to determine good quality reads. In many modern sequencing runs, a score of 60 is used.
+#' @param readScoreMinimum The user must input the minimum read score from the input bed files that is used to determine good quality reads. All values equal to and greater than the input are considered. In many modern sequencing runs, a score of 60 is used.
 #' @param OutputFileID User input string that will be used to identify output bed files
 #' @return Returns a list containing the Plus Strand Reads, the Minus Strand Reads, and the user defined name for the files. Also writes out the strand split bed files to the project directory.
 #' @examples
 #' ## Take input bed file, convert to GRanges object, and insert into method
 #' testBed <-  read.table(file = "PIPETS_TestData.bed", header = FALSE,stringsAsFactors=FALSE)
 #' testBed.gr <- GRanges(seqnames=testBed[,1],ranges=IRanges(start=testBed[,2],end=testBed[,3]),strand=testBed[,6], score=testBed[,5])
-#' GRanges_Split(inputData=testBed.gr, readScore=42, OutputFileID = "Test1")
+#' GRanges_Split(inputData=testBed.gr, readScoreMinimum=42, OutputFileID = "Test1")
 #' @noRd
 #'
-GRanges_Split <- function(inputData,readScore, OutputFileID){
+GRanges_Split <- function(inputData,readScoreMinimum, OutputFileID){
     message("+-----------------------------------+")
     message("Splitting Input GRanges Object By Strand")
     allMinusRanges <- inputData[strand(inputData) == "-",]
     allPlusRanges <- inputData[strand(inputData) == "+",]
     
-    allMinusRanges <- allMinusRanges[allMinusRanges$score == readScore,]
-    allPlusRanges <- allPlusRanges[allPlusRanges$score == readScore,]
+    allMinusRanges <- allMinusRanges[allMinusRanges$score >= readScoreMinimum,]
+    allPlusRanges <- allPlusRanges[allPlusRanges$score >= readScoreMinimum,]
     
     allMinusCoverage <- as.data.frame(table(end(allPlusRanges)))
     allMinusReads <- as.data.frame(allPlusRanges)
@@ -738,7 +738,7 @@ CompStrand_SecondaryCondense <- function(CompInitialCondense,
 #' @param inputData Either input Bed file or GRanges object. Either must have at least chromosome, start, stop, and strand information
 #' @param OutputFileID User defined header for the output files of PIPETS. Will be the prefix for output bed and csv files.
 #' @param OutputFileDir User defined output file directory where all files generated by PIPETS will be placed
-#' @param readScore The user must input the read score from the input bed files that is used to determine good quality reads. In many modern sequencing runs, a score of 60 is used.
+#' @param readScoreMinimum The user must input the minimum read score from the input bed files that is used to determine good quality reads. All values equal to and greater than the input are considered. In many modern sequencing runs, a score of 60 is used.
 #' @param slidingWindowSize This parameter establishes the distance up and down stream of each position that a sliding window will be created around. The default value is 25, and this will result in a sliding window of total size 51 (25 upstream + position (1) + 25 downstream).
 #' @param slidingWindowMovementDistance This parameter sets the distance that the sliding window will be moved. By default, it is set to move by half of the sliding window size in order to ensure that almost every position in the data is tested twice.
 #' @param adjacentPeakDistance During the peak condensing step, this parameter is used to define “adjacent” for significant genomic positions. This is used to identify initial peak structures in the data. By default this value is set to 2 to ensure that single instances of loss of signal are not sufficient to prevent otherwise contiguous peak signatures from being combined.
@@ -753,27 +753,27 @@ CompStrand_SecondaryCondense <- function(CompInitialCondense,
 #' ## After completion, the output files will be created in the R project directory
 #'
 #' ## For run with defualt strictness of analysis
-#' PIPETS_FullRun(inputData = "PIPETS_TestData.bed", readScore = 42, 
+#' PIPETS_FullRun(inputData = "PIPETS_TestData.bed", readScoreMinimum = 42, 
 #' OutputFileDir = "~/Desktop/", OutputFileID = "Antibiotic1")
 #'
 #' ## For a more strict run (can be run for files with high total read depth)
-#' PIPETS_FullRun(inputData = "PIPETS_TestData.bed", readScore = 42, threshAdjust = 0.6, 
+#' PIPETS_FullRun(inputData = "PIPETS_TestData.bed", readScoreMinimum = 42, threshAdjust = 0.6, 
 #' OutputFileDir = "~/Desktop/", OutputFileID = "Antibiotic1_Strict")
 #'
 #' ## For a less strict run (for data with low total read depth)
-#' PIPETS_FullRun(inputData = "PIPETS_TestData.bed", readScore = 42, threshAdjust = 0.9, 
+#' PIPETS_FullRun(inputData = "PIPETS_TestData.bed", readScoreMinimum = 42, threshAdjust = 0.9, 
 #' OutputFileDir = "~/Desktop/", OutputFileID = "Antibiotic1_Lax")
 #'
 #' @return PIPETS outputs strand specific results files as well as strand specific bed files to the directory that the R project is in.
 #' @export
 
-PIPETS_FullRun <- function(inputData,readScore,OutputFileID,
+PIPETS_FullRun <- function(inputData,readScoreMinimum,OutputFileID,
     OutputFileDir,slidingWindowSize = 25,
     slidingWindowMovementDistance = 25,threshAdjust = 0.75,
     user_pValue = 0.0005,highOutlierTrim= 0.01,
     adjacentPeakDistance = 2, peakCondensingDistance = 20,
     inputDataFormat = "bedFile"){
-    kicker <- inputCheck(inputData,readScore,OutputFileID,
+    kicker <- inputCheck(inputData,readScoreMinimum,OutputFileID,
                          OutputFileDir,slidingWindowSize, 
                          slidingWindowMovementDistance,threshAdjust,
                          user_pValue,highOutlierTrim,
@@ -784,9 +784,9 @@ PIPETS_FullRun <- function(inputData,readScore,OutputFileID,
     }
     OutputFileID <- paste(OutputFileDir, OutputFileID, sep = "")
     if(inputDataFormat %in% "bedFile"){
-        AllReads <- Bed_Split(inputData, readScore, OutputFileID)
+        AllReads <- Bed_Split(inputData, readScoreMinimum, OutputFileID)
     } else if (inputDataFormat %in% "GRanges"){
-        AllReads <- GRanges_Split(inputData,readScore, OutputFileID)
+        AllReads <- GRanges_Split(inputData,readScoreMinimum, OutputFileID)
     }
     message("+-----------------------------------+")
     message("Performing Top Strand Analysis")
